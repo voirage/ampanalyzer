@@ -1,10 +1,10 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { calculateAmplifier } from './logic/amplifierCalculator';
 import type { CalculationResults, UserParams, Analysis } from './logic/amplifierCalculator';
 import CalculatorForm from './components/CalculatorForm';
 import ResultsDashboard from './components/ResultsDashboard';
 
-import { Cpu, ShieldAlert, FileText, ArrowRight, RotateCcw, Trash2, Eye, Home, Gauge, ShieldCheck } from 'lucide-react';
+import { Cpu, ShieldAlert, FileText, ArrowRight, Trash2, Eye, Home, Gauge, ShieldCheck } from 'lucide-react';
 
 function App() {
   const isPremium = false; // Flag pour fonctionnalités avancées
@@ -30,7 +30,7 @@ function App() {
 
   const saveAnalysis = (data: Analysis) => {
     const existing = JSON.parse(localStorage.getItem("analyses") || "[]");
-    const updated = [data, ...existing]; 
+    const updated = [data, ...existing];
     localStorage.setItem("analyses", JSON.stringify(updated));
     setHistory(updated);
     alert("Analyse sauvegardée avec succès !");
@@ -59,7 +59,7 @@ function App() {
           <p style={{ fontSize: '1.2rem', color: 'var(--text-muted)', marginBottom: '2.5rem' }}>
             Assistant de préconception d’amplificateurs audio
           </p>
-          
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem', marginBottom: '3rem' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
               <div style={{ width: '40px', height: '40px', borderRadius: '0.8rem', background: 'rgba(0, 242, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -81,8 +81,8 @@ function App() {
             </div>
           </div>
 
-          <button 
-            className="download-btn" 
+          <button
+            className="download-btn"
             style={{ margin: '0 auto', padding: '1rem 3rem', fontSize: '1.1rem' }}
             onClick={() => setScreen('analyzer')}
           >
@@ -94,7 +94,7 @@ function App() {
           <div className="glass-card animate-fade" style={{ maxWidth: '800px', width: '100%', padding: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Historique des Analyses</h3>
-              <button 
+              <button
                 onClick={clearHistory}
                 style={{ background: 'transparent', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline' }}
               >
@@ -103,38 +103,38 @@ function App() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               {history.map((a) => (
-                  <div 
-                    key={a.id} 
-                    onClick={() => {
-                      setParams(prev => ({
-                        ...prev,
-                        targetPower: a.power,
-                        loadImpedance: a.impedance,
-                        supplyVoltage: a.vcc,
-                        ampClass: a.architecture.includes('Classe D') ? 'Class D' : 'Class AB'
-                      }));
-                      setScreen('analyzer');
-                    }}
-                    style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center',
-                      padding: '1rem', 
-                      background: 'rgba(255,255,255,0.03)', 
-                      borderRadius: '0.8rem',
-                      border: '1px solid rgba(255,255,255,0.05)',
-                      cursor: 'pointer',
-                      transition: 'transform 0.2s, background 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                      e.currentTarget.style.transform = 'translateX(5px)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-                      e.currentTarget.style.transform = 'translateX(0)';
-                    }}
-                  >
+                <div
+                  key={a.id}
+                  onClick={() => {
+                    setParams(prev => ({
+                      ...prev,
+                      targetPower: a.power,
+                      loadImpedance: a.impedance,
+                      supplyVoltage: a.vcc,
+                      ampClass: a.architecture.includes('Classe D') ? 'Class D' : 'Class AB'
+                    }));
+                    setScreen('analyzer');
+                  }}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '1rem',
+                    background: 'rgba(255,255,255,0.03)',
+                    borderRadius: '0.8rem',
+                    border: '1px solid rgba(255,255,255,0.05)',
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s, background 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                    e.currentTarget.style.transform = 'translateX(5px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                    e.currentTarget.style.transform = 'translateX(0)';
+                  }}
+                >
                   <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-cyan)', fontSize: '0.85rem', fontWeight: 600 }}>
                       <Eye size={16} /> Voir
@@ -144,25 +144,25 @@ function App() {
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{a.date}</div>
                   </div>
                   <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <div style={{ 
-                      padding: '0.3rem 0.8rem', 
-                      borderRadius: '1rem', 
-                      fontSize: '0.75rem', 
+                    <div style={{
+                      padding: '0.3rem 0.8rem',
+                      borderRadius: '1rem',
+                      fontSize: '0.75rem',
                       fontWeight: 700,
                       background: a.verdict === 'Functional' ? 'rgba(0, 255, 128, 0.1)' : 'rgba(255, 75, 43, 0.1)',
                       color: a.verdict === 'Functional' ? 'var(--accent-green)' : 'var(--accent-red)'
                     }}>
                       {a.verdict}
                     </div>
-                    <button 
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
                         deleteAnalysis(a.id);
                       }}
-                      style={{ 
-                        background: 'transparent', 
-                        border: 'none', 
-                        color: 'rgba(255,255,255,0.2)', 
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'rgba(255,255,255,0.2)',
                         cursor: 'pointer',
                         padding: '0.4rem',
                         borderRadius: '0.4rem',
@@ -197,24 +197,24 @@ function App() {
           <p>Outil d'Analyse et de Conception</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <label style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '0.5rem', 
-            cursor: 'pointer', 
-            fontSize: '0.9rem', 
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            cursor: 'pointer',
+            fontSize: '0.9rem',
             color: 'var(--text-muted)'
           }}>
-            <input 
-              type="checkbox" 
-              checked={isExpertMode} 
+            <input
+              type="checkbox"
+              checked={isExpertMode}
               onChange={(e) => setIsExpertMode(e.target.checked)}
             />
-            {isPremium ? <Gauge size={16} /> : <ShieldCheck size={16} color="var(--accent-blue)" />} 
+            {isPremium ? <Gauge size={16} /> : <ShieldCheck size={16} color="var(--accent-blue)" />}
             Mode Expert
             {!isPremium && <span style={{ marginLeft: '0.3rem', fontSize: '0.6rem', padding: '0.1rem 0.4rem', background: 'var(--accent-blue)', color: 'white', borderRadius: '0.4rem', fontWeight: 800 }}>PRO</span>}
           </label>
-          <button 
+          <button
             onClick={() => setScreen('home')}
             style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)', color: 'white', padding: '0.6rem 1.2rem', borderRadius: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}
           >
@@ -227,12 +227,12 @@ function App() {
         <section>
           <CalculatorForm params={params} setParams={setParams} />
         </section>
-        
+
         <section>
           {analysisData && (
-            <ResultsDashboard 
-              results={analysisData} 
-              params={params} 
+            <ResultsDashboard
+              results={analysisData}
+              params={params}
               isExpert={isExpertMode}
               isPremium={isPremium}
               onSave={() => saveAnalysis({
@@ -243,7 +243,7 @@ function App() {
                 vcc: params.supplyVoltage,
                 architecture: params.ampClass === 'Class D' ? 'Classe D' : 'Classe AB',
                 verdict: analysisData.recommendation.warnings.length === 0 ? 'Functional' : 'Warning'
-              })} 
+              })}
             />
           )}
         </section>

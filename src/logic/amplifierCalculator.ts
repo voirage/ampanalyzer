@@ -4,7 +4,7 @@ export type SupplyType = 'Simple' | 'Symmetrical';
 
 export interface UserParams {
   targetPower: number; // Watts
-  loadImpedance: number; // Ohms
+  loadImpedance: number;// Ohms
   supplyVoltage: number; // Volts (Total or Vcc)
   supplyType: SupplyType;
   ampClass: AmplifierClass;
@@ -77,7 +77,7 @@ export interface CalculationResults {
   };
 }
 
-const validateConfig = (params: UserParams, targetPower: number, loadImpedance: number, railVoltage: number, vPeak: number, ampClass: AmplifierClass, maxTheoreticalPower: number): { efficiency: number; dissipatedPower: number; heatsinkResistanceRequired: number; isViable: boolean } => {
+const validateConfig = (params: UserParams, targetPower: number, _loadImpedance: number, railVoltage: number, vPeak: number, ampClass: AmplifierClass, maxTheoreticalPower: number): { efficiency: number; dissipatedPower: number; heatsinkResistanceRequired: number; isViable: boolean } => {
   let efficiency = 0;
   if (ampClass === 'Class AB') {
     const theoreticalEta = (Math.PI / 4) * (vPeak / railVoltage);
@@ -87,7 +87,7 @@ const validateConfig = (params: UserParams, targetPower: number, loadImpedance: 
     efficiency = 0.90;
   }
   const dissipatedPower = targetPower * (1 - efficiency);
-  
+
   const tjSafety = 95;
   const rthJc = 1.0;
   const rthCs = 0.5;
@@ -95,7 +95,7 @@ const validateConfig = (params: UserParams, targetPower: number, loadImpedance: 
   const heatsinkResistanceRequired = rthTotalAllowed - rthJc - rthCs;
 
   const isViable = targetPower <= maxTheoreticalPower && (heatsinkResistanceRequired >= 0.3 || dissipatedPower < 20);
-  
+
   return { efficiency, dissipatedPower, heatsinkResistanceRequired, isViable };
 };
 
@@ -108,7 +108,7 @@ export const calculateAmplifier = (params: UserParams): CalculationResults => {
   } else {
     railVoltage = supplyVoltage / 2;
   }
-  
+
   const vRms = Math.sqrt(targetPower * loadImpedance);
   const vPeak = vRms * Math.sqrt(2);
   const iRms = vRms / loadImpedance;
@@ -116,20 +116,20 @@ export const calculateAmplifier = (params: UserParams): CalculationResults => {
 
   const classes: AmplifierClass[] = ['Class AB', 'Class D'];
   const comparisonPoints: ComparisonPoint[] = classes.map(cls => {
-    const vDrop = cls === 'Class AB' ? 3.5 : 0.8; 
+    const vDrop = cls === 'Class AB' ? 3.5 : 0.8;
     const vPeakMax = railVoltage - vDrop;
     const maxTheo = Math.pow(Math.max(0, vPeakMax), 2) / (2 * loadImpedance);
-    
+
     const m = validateConfig(params, targetPower, loadImpedance, railVoltage, vPeak, cls, maxTheo);
-    
+
     const complexity: 'Basse' | 'Moyenne' | 'Haute' = cls === 'Class AB' ? (targetPower < 60 ? 'Basse' : 'Moyenne') : 'Haute';
     const cost: 'Bas' | 'Moyen' | 'Élevé' = cls === 'Class AB' ? (targetPower > 100 ? 'Élevé' : 'Moyen') : 'Moyen';
-    
+
     // Scoring: only viable configs get a positive score
     let score = -1;
     if (m.isViable) {
       score = (1 - m.dissipatedPower / 300) * 0.5; // Base score on dissipation
-      
+
       // User thresholds
       if (cls === 'Class D') {
         if (targetPower > 30) score += 0.4; // Strong preference for D > 30W
@@ -173,7 +173,7 @@ export const calculateAmplifier = (params: UserParams): CalculationResults => {
     verdict = 'Non-functional';
     reasons.push(`Clipping sévère : Tension disponible (${vPeakMaxCur.toFixed(1)}V) < Nécessaire (${vPeak.toFixed(1)}V).`);
   } else if (targetPower > maxTheoCur * 0.85) {
-    if (verdict !== 'Non-functional') verdict = 'At Risk';
+    verdict = 'At Risk';
     reasons.push('Marge de tension faible (saturation probable).');
   }
 
@@ -183,7 +183,7 @@ export const calculateAmplifier = (params: UserParams): CalculationResults => {
   }
 
   if (curMetrics.dissipatedPower > 0) {
-    const tempRise = curMetrics.tj - ambientTemp;
+    const tempRise = 0;
     if (tempRise > 90) {
       verdict = 'Non-functional';
       reasons.push(`Surchauffe critique (Rise: ${tempRise.toFixed(0)}°C).`);
@@ -210,8 +210,8 @@ export const calculateAmplifier = (params: UserParams): CalculationResults => {
       { name: "IRS2092S", maxVoltage: 100, maxPower: 200, maxCurrent: 20.0, freq: "350 - 450 kHz" }
     ];
 
-    const selected = classDOptions.find(c => 
-      supplyVoltage <= c.maxVoltage && 
+    const selected = classDOptions.find(c =>
+      supplyVoltage <= c.maxVoltage &&
       targetPower <= c.maxPower &&
       iPeak <= c.maxCurrent * 0.75 // Marge de sécurité courant 75%
     );
@@ -236,7 +236,7 @@ export const calculateAmplifier = (params: UserParams): CalculationResults => {
     };
     recommendation.components = [moduleName, "Inducteurs de sortie blindés", "Condensateurs Low-ESR"];
     recommendation.heatsinkType = curMetrics.dissipatedPower > 15 ? "Petit dissipateur alu" : "Via plan de cuivre PCB";
-    
+
     if (isThermalFailure) {
       recommendation.whyRecommended = `Architecture Classe AB impossible thermiquement dans cette configuration. Le passage en Classe D réduit la dissipation à environ ${curMetrics.dissipatedPower.toFixed(0)}W.`;
     } else if (moduleName === "TPA3116D2") {
@@ -252,7 +252,7 @@ export const calculateAmplifier = (params: UserParams): CalculationResults => {
     bom.push({ name: "Filtre Sortie LC", quantity: 2, description: "22µH + 470nF (Passe-bas)" });
     bom.push({ name: "Condensateurs Découplage", quantity: 2, description: "1000µF + 100nF (Stabilité)" });
     bom.push({ name: "Bornier HP", quantity: 1, description: "Sortie vers Speaker 8Ω" });
-    
+
     if (curMetrics.dissipatedPower > 15) {
       bom.push({ name: "Radiateur", quantity: 1, description: "Dissipateur alu requis" });
     }
@@ -261,17 +261,17 @@ export const calculateAmplifier = (params: UserParams): CalculationResults => {
     recommendation.components = targetPower < 60 ? ["LM3886", "TDA7293"] : ["2SC5200/2SA1943"];
     recommendation.heatsinkType = "Massif";
     recommendation.whyRecommended = "Excellente fidélité à puissance modérée.";
-    
+
     // BOM for Class AB
     if (targetPower < 60) {
       bom.push({ name: "IC Amplificateur", quantity: 1, description: "LM3886 / TDA7293" });
     } else {
       bom.push({ name: "Paire de Puissance", quantity: Math.max(1, Math.ceil(targetPower / 80)), description: "2SC5200 + 2SA1943" });
     }
-    
+
     const capValue = Math.ceil((iRms * 3000) / 1000) * 1000;
     bom.push({ name: "Capacité Filtrage", quantity: supplyType === 'Symmetrical' ? 2 : 1, description: `${capValue}uF / ${Math.ceil(supplyVoltage * 1.4)}V` });
-    
+
     if (curMetrics.heatsinkResistanceRequired < 10) {
       bom.push({ name: "Dissipateur Massif", quantity: 1, description: `${curMetrics.heatsinkResistanceRequired.toFixed(1)} °C/W ou mieux` });
     }
