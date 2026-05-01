@@ -544,7 +544,7 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, params, on
       <div style={{ marginTop: '2rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
         <button
           className="download-btn"
-          onClick={() => isPremium ? generatePDF() : alert('Paiement bientôt disponible')}
+          onClick={generatePDF}
           style={{ position: 'relative' }}
         >
           <Download size={18} /> Télécharger le Rapport Complet (PDF)
