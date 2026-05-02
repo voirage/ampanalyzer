@@ -24,15 +24,28 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, params, on
   const headroom = typeof (results as any).headroom === 'number' ? (results as any).headroom : 0;
   const tj = typeof (results as any).tj === 'number' ? (results as any).tj : 0;
   const mainComponent = results.recommendation.components[0] || 'Standard IC';
+  let circuit = null;
 
-  const circuit = generateCircuit({
-    targetPower: params.targetPower,
-    loadImpedance: params.loadImpedance,
-    supplyVoltage: params.supplyVoltage,
-    ampClass: params.ampClass,
-    supplyType: params.supplyType,
-    ambientTemp: params.ambientTemp,
-  });
+  try {
+    circuit = generateCircuit({
+      targetPower: params.targetPower,
+      loadImpedance: params.loadImpedance,
+      supplyVoltage: params.supplyVoltage,
+      ampClass: params.ampClass,
+      supplyType: params.supplyType,
+      ambientTemp: params.ambientTemp,
+    });
+  } catch (error) {
+    console.error("Erreur génération circuit :", error);
+  }
+
+
+
+
+
+
+
+
 
   const getVerdictBadgeClass = () => {
     switch (results.verdict) {
@@ -550,10 +563,15 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, params, on
           </div>
         </div>
       </div>
-      <CircuitSchematic
-        circuit={circuit}
-        ampClass={params.ampClass}
-      />
+
+
+
+      {circuit && (
+        <CircuitSchematic
+          circuit={circuit}
+          ampClass={params.ampClass}
+        />
+      )}
 
       <div style={{ marginTop: '2rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
         <button
