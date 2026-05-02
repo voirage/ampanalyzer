@@ -3,7 +3,8 @@ import type { CalculationResults, UserParams } from '../logic/amplifierCalculato
 import { Zap, Activity, Thermometer, ShieldCheck, AlertTriangle, XCircle, Download, Save, Gauge, Lock } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-
+import { generateCircuit } from "../logic/circuitGenerator";
+import CircuitSchematic from "./CircuitSchematic";
 interface ResultsDashboardProps {
   results: CalculationResults;
   params: UserParams;
@@ -23,6 +24,15 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, params, on
   const headroom = typeof (results as any).headroom === 'number' ? (results as any).headroom : 0;
   const tj = typeof (results as any).tj === 'number' ? (results as any).tj : 0;
   const mainComponent = results.recommendation.components[0] || 'Standard IC';
+
+  const circuit = generateCircuit({
+    targetPower: params.targetPower,
+    loadImpedance: params.loadImpedance,
+    supplyVoltage: params.supplyVoltage,
+    ampClass: params.ampClass,
+    supplyType: params.supplyType,
+    ambientTemp: params.ambientTemp,
+  });
 
   const getVerdictBadgeClass = () => {
     switch (results.verdict) {
@@ -540,6 +550,10 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, params, on
           </div>
         </div>
       </div>
+      <CircuitSchematic
+        circuit={circuit}
+        ampClass={params.ampClass}
+      />
 
       <div style={{ marginTop: '2rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
         <button
