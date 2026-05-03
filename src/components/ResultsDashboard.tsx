@@ -66,157 +66,198 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, params, on
   };
 
   const generatePDF = () => {
+    const pdfResults = results;
+    const pdfCircuit: any = circuit;
+
+    const pdfArchitecture =
+      pdfCircuit?.architecture ||
+      pdfCircuit?.topology ||
+      architectureChoisie;
+
+    const pdfMainComponent =
+      pdfCircuit?.mainComponent ||
+      pdfCircuit?.ic ||
+      pdfCircuit?.component ||
+      mainComponent;
+
+    const pdfBom =
+      pdfCircuit?.bom && pdfCircuit.bom.length > 0
+        ? pdfCircuit.bom
+        : results.bom;
+
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 
     doc.setFillColor(10, 10, 12);
-    doc.rect(0, 0, pageWidth, 40, 'F');
+    doc.rect(0, 0, pageWidth, 40, "F");
     doc.setTextColor(0, 242, 255);
     doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.text('AmpAnalyzer - Rapport Technique', 20, 25);
+    doc.setFont("helvetica", "bold");
+    doc.text("AmpAnalyzer - Rapport Technique", 20, 25);
 
     doc.setTextColor(150, 150, 150);
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont("helvetica", "normal");
     doc.text(`Généré le : ${new Date().toLocaleString()}`, 20, 50);
-    doc.text('Version logicielle : MVP 1.0', 20, 56);
+    doc.text("Version logicielle : MVP 1.0", 20, 56);
 
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('1. Paramètres de Conception', 20, 70);
+    doc.setFont("helvetica", "bold");
+    doc.text("1. Paramètres de Conception", 20, 70);
 
     autoTable(doc, {
       startY: 75,
-      head: [['Paramètre', 'Valeur']],
+      head: [["Paramètre", "Valeur"]],
       body: [
-        ['Puissance Cible', `${params.targetPower} W`],
-        ['Impédance HP', `${params.loadImpedance} Ω`],
-        ['Alimentation brute', `${params.supplyVoltage} V (${params.supplyType})`],
-        ['Classe choisie', params.ampClass],
-        ['Température ambiante', `${params.ambientTemp} °C`],
+        ["Puissance Cible", `${params.targetPower} W`],
+        ["Impédance HP", `${params.loadImpedance} Ω`],
+        ["Alimentation", `${params.supplyVoltage} V (${params.supplyType})`],
+        ["Classe choisie", params.ampClass],
+        ["Température ambiante", `${params.ambientTemp} °C`],
       ],
-      theme: 'grid',
-      headStyles: { fillColor: [0, 242, 255], textColor: [255, 255, 255] },
+      theme: "grid",
+      headStyles: { fillColor: [0, 180, 190], textColor: [255, 255, 255] },
     });
 
     const finalY1 = (doc as any).lastAutoTable?.finalY || 75;
-    doc.setFont('helvetica', 'bold');
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
     doc.text("2. Résultats d'Analyse Électrique & Thermique", 20, finalY1 + 15);
 
     autoTable(doc, {
       startY: finalY1 + 20,
-      head: [['Domaine', 'Indicateur', 'Valeur']],
+      head: [["Domaine", "Indicateur", "Valeur"]],
       body: [
-        ['Électrique', 'Tension Crête (Vpk)', `${results.vPeak.toFixed(2)} V`],
-        ['Électrique', 'Courant Crête (Ipk)', `${results.iPeak.toFixed(2)} A`],
-        ['Électrique', 'Réserve Tension (Headroom)', `${headroom.toFixed(2)} V`],
-        ['Électrique', 'Efficacité estimée', `${(results.efficiency * 100).toFixed(0)} %`],
-        ['Électrique', 'THD estimé', `${results.thd.toFixed(1)} %`],
-        ['Thermique', 'Puissance Dissipée', `${results.dissipatedPower.toFixed(1)} W`],
-        ['Thermique', 'Temp. Jonction (Tj)', `${tj.toFixed(0)} °C`],
-        ['Thermique', 'Dissipateur Requis', results.recommendation.heatsinkType],
+        ["Électrique", "Tension RMS", `${pdfResults.vRms.toFixed(2)} V`],
+        ["Électrique", "Tension Crête", `${pdfResults.vPeak.toFixed(2)} V`],
+        ["Électrique", "Courant RMS", `${pdfResults.iRms.toFixed(2)} A`],
+        ["Électrique", "Courant Crête", `${pdfResults.iPeak.toFixed(2)} A`],
+        ["Électrique", "Puissance max théorique", `${pdfResults.maxTheoreticalPower.toFixed(1)} W`],
+        ["Électrique", "Efficacité estimée", `${(pdfResults.efficiency * 100).toFixed(0)} %`],
+        ["Électrique", "THD estimé", `${pdfResults.thd.toFixed(1)} %`],
+        ["Thermique", "Puissance dissipée", `${pdfResults.dissipatedPower.toFixed(1)} W`],
+        ["Thermique", "Température jonction", `${tj.toFixed(0)} °C`],
+        ["Thermique", "Dissipateur requis", pdfResults.recommendation.heatsinkType],
       ],
-      theme: 'striped',
+      theme: "striped",
     });
 
     const finalY2 = (doc as any).lastAutoTable?.finalY || finalY1 + 20;
-    doc.setFont('helvetica', 'bold');
-    doc.text('3. Verdict de Faisabilité', 20, finalY2 + 15);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text("3. Verdict de Faisabilité", 20, finalY2 + 15);
 
     const verdictColor: [number, number, number] =
-      results.verdict === 'Functional'
+      pdfResults.verdict === "Functional"
         ? [0, 180, 0]
-        : results.verdict === 'At Risk'
+        : pdfResults.verdict === "At Risk"
           ? [180, 120, 0]
           : [220, 0, 0];
 
     doc.setTextColor(verdictColor[0], verdictColor[1], verdictColor[2]);
     doc.setFontSize(16);
-    doc.text(`STATUT : ${results.verdict}`, 20, finalY2 + 25);
+    doc.text(`STATUT : ${pdfResults.verdict}`, 20, finalY2 + 25);
 
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'italic');
-    doc.text(results.reasons[0] || '', 20, finalY2 + 32);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont("helvetica", "italic");
+    doc.text(pdfResults.reasons[0] || "Aucun problème critique détecté.", 20, finalY2 + 32);
 
     doc.addPage();
+
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('4. Comparatif des Architectures', 20, 20);
+    doc.text("4. Comparatif des Architectures", 20, 20);
 
     autoTable(doc, {
       startY: 25,
-      head: [['Classe', 'Viabilité', 'Dissipation', 'Complexité']],
-      body: results.comparison.points.map((p) => [
+      head: [["Classe", "Viabilité", "Rendement", "Dissipation", "Complexité"]],
+      body: pdfResults.comparison.points.map((p) => [
         p.ampClass,
-        p.isViable ? 'OUI' : 'NON',
-        `${p.dissipation.toFixed(0)} W`,
+        p.isViable ? "OUI" : "NON",
+        `${(p.efficiency * 100).toFixed(0)} %`,
+        `${p.dissipation.toFixed(1)} W`,
         p.complexity,
       ]),
       headStyles: { fillColor: [40, 44, 52], textColor: [255, 255, 255] },
     });
 
     const finalY3 = (doc as any).lastAutoTable?.finalY || 25;
-    doc.setFont('helvetica', 'bold');
-    doc.text('5. Solution Technique Préconisée', 20, finalY3 + 15);
-    doc.setFontSize(11);
-    doc.text(`Architecture : ${architectureChoisie} (${mainComponent})`, 20, finalY3 + 22);
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    const splitWhy = doc.splitTextToSize(results.recommendation.whyRecommended || '', pageWidth - 40);
-    doc.text(splitWhy, 20, finalY3 + 28);
-
-    const finalY4 = finalY3 + 30 + splitWhy.length * 5;
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`6. Schéma de principe (${architectureChoisie})`, 20, finalY4 + 10);
-    doc.setFont('courier', 'normal');
+    doc.text("5. Solution Technique Préconisée", 20, finalY3 + 15);
+
+    doc.setFontSize(11);
+    doc.text(`Architecture : ${pdfArchitecture} (${pdfMainComponent})`, 20, finalY3 + 23);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    const whyText = pdfResults.recommendation.whyRecommended || "Solution choisie selon les paramètres fournis.";
+    const splitWhy = doc.splitTextToSize(whyText, pageWidth - 40);
+    doc.text(splitWhy, 20, finalY3 + 30);
+
+    const finalY4 = finalY3 + 35 + splitWhy.length * 5;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.text(`6. Schéma de principe (${pdfArchitecture})`, 20, finalY4 + 10);
+
+    doc.setFont("courier", "normal");
     doc.setFontSize(10);
 
     const schematic =
-      architectureChoisie === 'Classe D'
+      String(pdfArchitecture).includes("D")
         ? [
-          `[Audio In] --L/C Filtre--> [${mainComponent}] --LC Out--> [HP]`,
-          '                            |',
-          '                          Vdc Simple + Découplage',
+          `[Audio In] --Filtre entrée--> [${pdfMainComponent}] --MOSFET/LC--> [HP ${params.loadImpedance}Ω]`,
+          "                                |",
+          `                              Alim ${params.supplyVoltage}V ${params.supplyType}`,
         ]
         : [
-          `[Audio In] --C Couplage--> [${mainComponent}] --Sortie--> [HP]`,
-          '                            |',
-          '                          Vcc Symétrique (±)',
+          `[Audio In] --C/R entrée--> [${pdfMainComponent}] --Sortie--> [HP ${params.loadImpedance}Ω]`,
+          "                              |",
+          `                            Alim ${params.supplyVoltage}V ${params.supplyType}`,
         ];
 
     doc.text(schematic, 20, finalY4 + 20);
 
-    doc.setFont('helvetica', 'bold');
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
-    doc.text(`7. Liste des Composants (BOM - ${architectureChoisie})`, 20, finalY4 + 45);
+    doc.text(`7. Liste des Composants (BOM - ${pdfArchitecture})`, 20, finalY4 + 48);
 
     autoTable(doc, {
-      startY: finalY4 + 50,
-      head: [['Composant', 'Qté', 'Description']],
-      body: results.bom.map((item) => [item.name, item.quantity.toString(), item.description]),
-      theme: 'grid',
+      startY: finalY4 + 55,
+      head: [["Réf.", "Composant", "Valeur", "Qté", "Rôle / Description"]],
+      body: pdfBom.map((item: any) => [
+        item.ref || "-",
+        item.name || "Composant",
+        item.value || "-",
+        String(item.quantity ?? 1),
+        item.role || item.description || "-",
+      ]),
+      theme: "grid",
+      headStyles: { fillColor: [0, 160, 130], textColor: [255, 255, 255] },
     });
 
-    const finalY5 = (doc as any).lastAutoTable?.finalY || finalY4 + 50;
+    const finalY5 = (doc as any).lastAutoTable?.finalY || finalY4 + 55;
+
     doc.setFillColor(255, 248, 230);
-    doc.rect(20, finalY5 + 10, pageWidth - 40, 35, 'F');
+    doc.rect(20, finalY5 + 10, pageWidth - 40, 35, "F");
     doc.setTextColor(180, 120, 0);
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('NOTE DE SÉCURITÉ IMPORTANTE', 25, finalY5 + 18);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont("helvetica", "bold");
+    doc.text("NOTE DE SÉCURITÉ IMPORTANTE", 25, finalY5 + 18);
+
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.text(
       [
-        'Ce rapport est généré à titre indicatif sur la base de modèles mathématiques.',
-        'Une validation humaine par un ingénieur qualifié est indispensable avant toute réalisation.',
-        'Le prototypage réel peut présenter des comportements imprévus (EMI, instabilité thermique).',
+        "Ce rapport est généré à titre indicatif sur la base de modèles mathématiques.",
+        "Une validation humaine par un ingénieur qualifié est indispensable avant toute réalisation.",
+        "Le prototypage réel peut présenter des comportements imprévus : EMI, bruit, instabilité thermique.",
         "AmpAnalyzer ne pourra être tenu responsable des dommages liés à l'usage de ce rapport.",
       ],
       25,
@@ -224,6 +265,7 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, params, on
     );
 
     const pageCount = (doc as any).internal.getNumberOfPages();
+
     for (let i = 1; i <= pageCount; i += 1) {
       doc.setPage(i);
       doc.setFontSize(8);
@@ -232,12 +274,13 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, params, on
         `Page ${i} sur ${pageCount} - AmpAnalyzer MVP - Outil de Conception`,
         pageWidth / 2,
         doc.internal.pageSize.getHeight() - 10,
-        { align: 'center' }
+        { align: "center" }
       );
     }
 
-    doc.save(`AmpAnalyzer_Report_${params.targetPower}W.pdf`);
+    doc.save(`AmpAnalyzer_Report_${params.targetPower}W_${params.loadImpedance}ohm.pdf`);
   };
+
 
   return (
     <div className="animate-fade">
