@@ -11,13 +11,26 @@ const clamp = (value: number, min: number, max: number) => {
   return Math.min(max, Math.max(min, value));
 };
 
+const requiredVoltageForPower = (power: number, impedance: number) => {
+  return Math.ceil(Math.sqrt(power * impedance) * Math.SQRT2 * 1.15);
+};
+
+const maxPowerForVoltage = (voltage: number, impedance: number) => {
+  return Math.floor(((voltage / 1.15) / Math.SQRT2) ** 2 / impedance);
+};
+
 const CalculatorForm: React.FC<CalculatorFormProps> = ({ params, setParams }) => {
+  const voltageMin = Math.max(5, requiredVoltageForPower(params.targetPower, params.loadImpedance));
+  const powerMax = Math.min(100, Math.max(1, maxPowerForVoltage(params.supplyVoltage, params.loadImpedance)));
+
   const setSupplyType = (type: SupplyType) => setParams({ ...params, supplyType: type });
   const setAmpClass = (cls: AmplifierClass) => setParams({ ...params, ampClass: cls });
 
   return (
     <div className="glass-card animate-fade" style={{ height: 'fit-content' }}>
-      <h3 style={{ marginBottom: '1.5rem', fontSize: '1.2rem', fontWeight: 700 }}>Paramètres de Conception</h3>
+      <h3 style={{ marginBottom: '1.5rem', fontSize: '1.2rem', fontWeight: 700 }}>
+        Paramètres de Conception
+      </h3>
 
       <div className="form-group">
         <label>Puissance de sortie (W)</label>
@@ -26,13 +39,16 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({ params, setParams }) =>
           name="targetPower"
           value={params.targetPower}
           onChange={(e) => {
-            const value = clamp(Number(e.target.value), 1, 100);
+            const value = clamp(Number(e.target.value), 1, powerMax);
             setParams({ ...params, targetPower: value });
           }}
           className="input-control"
           min={1}
-          max={100}
+          max={powerMax}
         />
+        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+          Limite actuelle avec {params.supplyVoltage}V / {params.loadImpedance}Ω : {powerMax}W
+        </p>
       </div>
 
       <div className="form-group">
@@ -42,7 +58,14 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({ params, setParams }) =>
             <button
               key={z}
               className={`toggle-btn ${params.loadImpedance === z ? 'active' : ''}`}
-              onClick={() => setParams({ ...params, loadImpedance: z })}
+              onClick={() => {
+                const nextPowerMax = Math.min(100, Math.max(1, maxPowerForVoltage(params.supplyVoltage, z)));
+                setParams({
+                  ...params,
+                  loadImpedance: z,
+                  targetPower: clamp(params.targetPower, 1, nextPowerMax),
+                });
+              }}
               type="button"
             >
               {z}
@@ -58,15 +81,15 @@ const CalculatorForm: React.FC<CalculatorFormProps> = ({ params, setParams }) =>
           name="supplyVoltage"
           value={params.supplyVoltage}
           onChange={(e) => {
-            const value = clamp(Number(e.target.value), 5, 35);
+            const value = clamp(Number(e.target.value), voltageMin, 35);
             setParams({ ...params, supplyVoltage: value });
           }}
           className="input-control"
-          min={5}
+          min={voltageMin}
           max={35}
         />
         <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-          {params.supplyType === 'Symmetrical' ? 'Tension par rail (+/- Vcc)' : 'Tension totale'}
+          Minimum actuel pour {params.targetPower}W / {params.loadImpedance}Ω : {voltageMin}V
         </p>
       </div>
 
