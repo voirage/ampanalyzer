@@ -3,8 +3,10 @@ import type { CalculationResults, UserParams } from '../logic/amplifierCalculato
 import { Zap, Activity, Thermometer, ShieldCheck, AlertTriangle, XCircle, Download, Save, Gauge, Lock } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 import { generateCircuit } from "../logic/circuitGenerator";
 import CircuitSchematic from "./CircuitSchematic";
+
 interface ResultsDashboardProps {
   results: CalculationResults;
   params: UserParams;
@@ -65,7 +67,7 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, params, on
     }
   };
 
-  const generatePDF = () => {
+  const generatePDF = async () => {
     const pdfResults = results;
     const pdfCircuit: any = circuit;
 
@@ -222,7 +224,22 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, params, on
           `                            Alim ${params.supplyVoltage}V ${params.supplyType}`,
         ];
 
-    doc.text(schematic, 20, finalY4 + 20);
+    const schematicElement = document.getElementById('circuit-schematic-pdf');
+
+    if (schematicElement) {
+      const canvas = await html2canvas(schematicElement, {
+        backgroundColor: '#0d1117',
+        scale: 2,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = pageWidth - 40;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      doc.addImage(imgData, 'PNG', 20, finalY4 + 15, imgWidth, imgHeight);
+    } else {
+      doc.text(schematic, 20, finalY4 + 20);
+    }
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
@@ -609,12 +626,19 @@ const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, params, on
 
 
 
-      {circuit && (
-        <CircuitSchematic
-          circuit={circuit}
-          ampClass={params.ampClass}
-        />
-      )}
+      <div id="circuit-schematic-pdf">
+        {circuit && (
+          <CircuitSchematic
+            circuit={circuit}
+            ampClass={params.ampClass}
+          />
+        )}
+      </div>
+
+
+
+
+
 
       <div style={{ marginTop: '2rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
         <button
