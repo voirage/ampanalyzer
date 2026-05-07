@@ -448,7 +448,7 @@ export function buildClassDSchematic(vcc: number, rl: number, lUH: number, cUF: 
     <line x1="592" y1="74" x2="608" y2="74" stroke="#1a1a2e" stroke-width="2.8"/>
     <line x1="600" y1="74" x2="600" y2="318" stroke="#1a1a2e" stroke-width="1"/>
     <text x="612" y="65" fill="#0033cc" font-weight="bold" font-size="7.5">Cbulk</text>
-    <text x="612" y="75" fill="#444" font-size="7">${Math.ceil(600)}µF/${Math.ceil(vcc*1.3)}V</text>
+    <text x="612" y="75" fill="#444" font-size="7">${Math.ceil(600)}µF/${Math.ceil(vcc * 1.3)}V</text>
 
     <!-- ══ LÉGENDE ══ -->
     <rect x="455" y="240" width="185" height="95" rx="3"
@@ -477,7 +477,7 @@ export function buildClassDSchematic(vcc: number, rl: number, lUH: number, cUF: 
 export async function svgToDataURL(svgString: string, w: number, h: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const canvas = document.createElement('canvas');
-    canvas.width  = w * 2;
+    canvas.width = w * 2;
     canvas.height = h * 2;
     const ctx = canvas.getContext('2d');
     if (!ctx) { reject('canvas error'); return; }
@@ -486,7 +486,7 @@ export async function svgToDataURL(svgString: string, w: number, h: number): Pro
     ctx.fillRect(0, 0, w, h);
     const img = new Image();
     const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
     img.onload = () => {
       ctx.drawImage(img, 0, 0, w, h);
       URL.revokeObjectURL(url);
