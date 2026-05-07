@@ -1,17 +1,45 @@
-
-export type AmplifierClass = 'Class AB' | 'Class D';
-export type SupplyType = 'Simple' | 'Symmetrical';
-
 export interface UserParams {
-  targetPower: number; // Watts
-  loadImpedance: number;// Ohms
-  supplyVoltage: number; // Volts (Total or Vcc)
-  supplyType: SupplyType;
-  ampClass: AmplifierClass;
-  ambientTemp: number; // °C
+  targetPower: number;
+  loadImpedance: number;
+  supplyVoltage: number;
+  supplyType: 'Symmetrical' | 'Single';
+  ampClass: 'Class AB' | 'Class D';
+  ambientTemp: number;
 }
 
-export type Analysis = {
+export interface ComponentSpec {
+  label: string;
+  value: string;
+  note?: string;
+}
+
+export interface StageResult {
+  stageName: string;
+  components: ComponentSpec[];
+}
+
+export interface CalculationResults {
+  vcc: number;
+  vPeak: number;
+  iPeak: number;
+  iQuiescent: number;
+  realPower: number;
+  efficiency: number;
+  pdTotal: number;
+  pdPerDevice: number;
+  rthRequired: number;
+  tjMax: number;
+  heatsinkArea: number;
+  stages: StageResult[];
+  recommendation: {
+    verdict: 'Functional' | 'Risk' | 'Failed';
+    warnings: string[];
+    suggestions: string[];
+  };
+  blockDiagram: string[];
+}
+
+export interface Analysis {
   id: string;
   date: string;
   power: number;
@@ -19,292 +47,201 @@ export type Analysis = {
   vcc: number;
   architecture: string;
   verdict: string;
-};
-
-export interface Recommendation {
-  architecture: string;
-  components: string[];
-  heatsinkType: string;
-  warnings: string[];
-  whyRecommended: string;
-  classDSpecifics?: {
-    module: string;
-    switchingFreq: string;
-    filterType: string;
-    recommendedVoltage: string;
-  };
 }
 
-export interface BOMItem {
-  name: string;
-  quantity: number;
-  description: string;
-}
+function calculateClassAB(p: UserParams): CalculationResults {
+  const warnings: string[] = [];
+  const suggestions: string[] = [];
 
-export interface ComparisonPoint {
-  ampClass: AmplifierClass;
-  efficiency: number;
-  dissipation: number;
-  complexity: 'Basse' | 'Moyenne' | 'Haute';
-  cost: 'Bas' | 'Moyen' | 'Élevé';
-  isViable: boolean;
-  score: number;
-}
+  const vcc = p.supplyType === 'Symmetrical' ? p.supplyVoltage : p.supplyVoltage / 2;
+  const vSat = 2.5;
+  const vSwing = vcc - vSat;
+  const realPower = (vSwing * vSwing) / (2 * p.loadImpedance);
+  const vPeak = Math.sqrt(2 * realPower * p.loadImpedance);
+  const iPeak = vPeak / p.loadImpedance;
+  const efficiency = Math.min(78.5, (realPower / ((vcc * iPeak * 2) / Math.PI)) * 100);
+  const iQuiescent = 35;
+  const pdTotal = (vcc * vcc) / (Math.PI * Math.PI * p.loadImpedance);
+  const pdPerDevice = pdTotal / 2;
+  const tjMax = 150;
+  const rthRequired = (tjMax - p.ambientTemp) / Math.max(pdPerDevice, 0.1);
+  const heatsinkArea = pdTotal * 5;
 
-export interface CalculationResults {
-  vRms: number;
-  vPeak: number;
-  iRms: number;
-  iPeak: number;
-  maxTheoreticalPower: number;
-  efficiency: number;
-  dissipatedPower: number;
-  heatsinkResistanceRequired: number;
-  thd: number;
-  tj: number;
-  verdict: 'Functional' | 'At Risk' | 'Non-functional';
-  reasons: string[];
-  recommendation: Recommendation;
-  bom: BOMItem[];
-  comparison: {
-    points: ComparisonPoint[];
-    bestClass: AmplifierClass | null;
-  };
-  powerSupply: {
-    voltageSymmetrical: string;
-    voltageSimple: string;
-    minCurrent: string;
-  };
-}
+  const re = Math.max(0.22, Math.min(1.0, 0.65 / (iQuiescent / 1000 * 10)));
+  const rb1 = Math.round((vcc * 0.1) / (iQuiescent / 1000 * 10)) * 100;
+  const rb2 = Math.round(rb1 / 9) * 10;
+  const rin = 47000;
+  const cin = parseFloat((1 / (2 * Math.PI * 20 * rin) * 1e6).toFixed(2));
+  const ce = Math.round(1 / (2 * Math.PI * 20 * re) * 1e3);
+  const rDriver = Math.round(vcc / (iPeak * 5)) * 10;
+  const lComp = parseFloat((p.loadImpedance / (2 * Math.PI * 100000) * 1e6).toFixed(2));
 
-const validateConfig = (params: UserParams, targetPower: number, _loadImpedance: number, railVoltage: number, vPeak: number, ampClass: AmplifierClass, maxTheoreticalPower: number): { efficiency: number; dissipatedPower: number; heatsinkResistanceRequired: number; isViable: boolean } => {
-  let efficiency = 0;
-  if (ampClass === 'Class AB') {
-    const theoreticalEta = (Math.PI / 4) * (vPeak / railVoltage);
-    efficiency = Math.min(0.7, theoreticalEta * 0.85);
-    if (efficiency < 0.2) efficiency = 0.2;
-  } else {
-    efficiency = 0.90;
-  }
-  const dissipatedPower = targetPower * (1 - efficiency);
-
-  const tjSafety = 95;
-  const rthJc = 1.0;
-  const rthCs = 0.5;
-  const rthTotalAllowed = (tjSafety - params.ambientTemp) / Math.max(0.5, dissipatedPower);
-  const heatsinkResistanceRequired = rthTotalAllowed - rthJc - rthCs;
-
-  const isViable = targetPower <= maxTheoreticalPower && (heatsinkResistanceRequired >= 0.3 || dissipatedPower < 20);
-
-  return { efficiency, dissipatedPower, heatsinkResistanceRequired, isViable };
-};
-
-export const calculateAmplifier = (params: UserParams): CalculationResults => {
-  const { targetPower, loadImpedance, supplyVoltage, supplyType, ampClass, ambientTemp } = params;
-
-  let railVoltage = 0;
-  if (supplyType === 'Symmetrical') {
-    railVoltage = supplyVoltage;
-  } else {
-    railVoltage = supplyVoltage / 2;
-  }
-
-  const vRms = Math.sqrt(targetPower * loadImpedance);
-  const vPeak = vRms * Math.sqrt(2);
-  const iRms = vRms / loadImpedance;
-  const iPeak = vPeak / loadImpedance;
-
-  const classes: AmplifierClass[] = ['Class AB', 'Class D'];
-  const comparisonPoints: ComparisonPoint[] = classes.map(cls => {
-    const vDrop = cls === 'Class AB' ? 3.5 : 0.8;
-    const vPeakMax = railVoltage - vDrop;
-    const maxTheo = Math.pow(Math.max(0, vPeakMax), 2) / (2 * loadImpedance);
-
-    const m = validateConfig(params, targetPower, loadImpedance, railVoltage, vPeak, cls, maxTheo);
-
-    const complexity: 'Basse' | 'Moyenne' | 'Haute' = cls === 'Class AB' ? (targetPower < 60 ? 'Basse' : 'Moyenne') : 'Haute';
-    const cost: 'Bas' | 'Moyen' | 'Élevé' = cls === 'Class AB' ? (targetPower > 100 ? 'Élevé' : 'Moyen') : 'Moyen';
-
-    // Scoring: only viable configs get a positive score
-    let score = -1;
-    if (m.isViable) {
-      score = (1 - m.dissipatedPower / 300) * 0.5; // Base score on dissipation
-
-      // User thresholds
-      if (cls === 'Class D') {
-        if (targetPower > 30) score += 0.4; // Strong preference for D > 30W
-        if (m.dissipatedPower < 10) score += 0.2;
-      } else if (cls === 'Class AB') {
-        if (m.dissipatedPower > 25) score -= 0.3; // Penalty for AB if hot
-        if (targetPower < 20) score += 0.3; // Preference for AB at very low power (fidelity)
-      }
-
-      if (complexity === 'Basse') score += 0.2;
+  const stages: StageResult[] = [
+    {
+      stageName: "1. Étage d'entrée & Polarisation",
+      components: [
+        { label: "Résistance d'entrée (Rin)", value: `${rin / 1000} kΩ`, note: "Adaptation impédance entrée" },
+        { label: 'Condensateur de couplage (Cin)', value: `${cin} µF`, note: 'Coupure basse fréq. à 20 Hz' },
+        { label: 'R1 (pont diviseur)', value: `${rb1} Ω` },
+        { label: 'R2 (pont diviseur)', value: `${rb2} Ω` },
+      ]
+    },
+    {
+      stageName: '2. Étage de Gain (Driver)',
+      components: [
+        { label: 'Transistor driver', value: 'BC546 / 2N5551', note: 'NPN petits signaux, ft > 100 MHz' },
+        { label: 'Résistance collecteur (Rc)', value: `${rDriver} Ω` },
+        { label: 'Résistance émetteur (Re)', value: `${re.toFixed(2)} Ω`, note: 'Dégenération thermique' },
+        { label: 'Cond. bypass émetteur (Ce)', value: `${ce} µF` },
+      ]
+    },
+    {
+      stageName: '3. Étage de Puissance (Push-Pull)',
+      components: [
+        { label: 'Transistor NPN', value: 'TIP3055 / MJ15003', note: `Vce > ${(vcc * 2).toFixed(0)} V, Ic > ${(iPeak * 1.5).toFixed(1)} A` },
+        { label: 'Transistor PNP', value: 'TIP2955 / MJ15004', note: 'Complémentaire' },
+        { label: 'Résistance émetteur (Remit)', value: `${re.toFixed(2)} Ω / 2 W`, note: 'Équilibrage courant' },
+        { label: 'Diodes de polarisation', value: '2× 1N4148 / D44H11', note: 'Compensation thermique Vbe' },
+        { label: 'Dissipateur thermique', value: `≥ ${heatsinkArea.toFixed(0)} cm²`, note: `Rth ≤ ${rthRequired.toFixed(1)} °C/W` },
+      ]
+    },
+    {
+      stageName: '4. Filtrage & Protection',
+      components: [
+        { label: 'Inductance de Zobel (L)', value: `${lComp} µH`, note: 'Stabilité charge inductive' },
+        { label: 'Réseau Zobel (R+C)', value: '10 Ω + 100 nF', note: 'En parallèle avec la charge' },
+        { label: 'Fusible de sortie', value: `${(iPeak * 1.3).toFixed(1)} A`, note: 'Protection court-circuit' },
+        { label: 'Condensateur de découplage', value: '100 µF + 100 nF', note: "Sur chaque rail d'alim." },
+      ]
     }
+  ];
 
-    return {
-      ampClass: cls,
-      efficiency: m.efficiency,
-      dissipation: m.dissipatedPower,
-      complexity,
-      cost,
-      isViable: m.isViable,
-      score
-    };
-  });
-
-  const getBestArchitecture = (points: ComparisonPoint[]): AmplifierClass | null => {
-    const best = points.reduce((prev, curr) => prev.score > curr.score ? prev : curr);
-    return best.score > -1 ? best.ampClass : null;
-  };
-
-  const bestClass = getBestArchitecture(comparisonPoints);
-  const targetClass = bestClass || ampClass;
-
-  const vDropCur = targetClass === 'Class AB' ? 3.5 : 0.8;
-  const vPeakMaxCur = railVoltage - vDropCur;
-  const maxTheoCur = Math.pow(Math.max(0, vPeakMaxCur), 2) / (2 * loadImpedance);
-  const curMetrics = validateConfig(params, targetPower, loadImpedance, railVoltage, vPeak, targetClass, maxTheoCur);
-
-  const reasons: string[] = [];
-  let verdict: 'Functional' | 'At Risk' | 'Non-functional' = 'Functional';
-
-  if (targetPower > maxTheoCur) {
-    verdict = 'Non-functional';
-    reasons.push(`Clipping sévère : Tension disponible (${vPeakMaxCur.toFixed(1)}V) < Nécessaire (${vPeak.toFixed(1)}V).`);
-  } else if (targetPower > maxTheoCur * 0.85) {
-    verdict = 'At Risk';
-    reasons.push('Marge de tension faible (saturation probable).');
+  if (p.targetPower > realPower * 1.05) {
+    warnings.push(`Puissance demandée (${p.targetPower} W) > max atteignable (${realPower.toFixed(1)} W) avec Vcc = ${vcc} V.`);
+    suggestions.push(`Augmentez Vcc à ≥ ${Math.ceil(Math.sqrt(2 * p.targetPower * p.loadImpedance) + vSat)} V.`);
+  }
+  if (vcc < 12) {
+    warnings.push("Tension d'alimentation trop faible (< 12 V).");
+    suggestions.push('Utilisez une alimentation ≥ 15 V pour la Classe AB.');
+  }
+  if (p.loadImpedance < 4) {
+    warnings.push(`Charge ${p.loadImpedance} Ω : courant crête élevé (${iPeak.toFixed(1)} A).`);
+    suggestions.push('Transistors avec Ic > 10 A requis.');
+  }
+  if (pdPerDevice > 50) {
+    warnings.push(`Dissipation par transistor élevée (${pdPerDevice.toFixed(1)} W).`);
   }
 
-  if (iPeak > 15) {
-    if (verdict === 'Functional') verdict = 'At Risk';
-    reasons.push(`Courant excessif (${iPeak.toFixed(1)}A).`);
-  }
-
-  if (curMetrics.dissipatedPower > 0) {
-    const tempRise = 0;
-    if (tempRise > 90) {
-      verdict = 'Non-functional';
-      reasons.push(`Surchauffe critique (Rise: ${tempRise.toFixed(0)}°C).`);
-    } else if (tempRise > 60) {
-      if (verdict !== 'Non-functional') verdict = 'At Risk';
-      reasons.push(`Marge de sécurité thermique (60%) dépassée.`);
-    }
-  }
-
-  if (curMetrics.heatsinkResistanceRequired < 0.3 && curMetrics.dissipatedPower > 20) {
-    verdict = 'Non-functional';
-    reasons.push('Thermique impossible (solution passive irréaliste).');
-  }
-
-  // 5. Recommendations & BOM
-  const recommendation: Recommendation = { architecture: '', components: [], heatsinkType: '', warnings: [], whyRecommended: '' };
-  const isThermalFailure = verdict === 'Non-functional' && (reasons.some(r => r.includes('Thermique') || r.includes('Chaleur')) || curMetrics.heatsinkResistanceRequired < 0.3);
-
-  const bom: BOMItem[] = [];
-
-  if (targetClass === 'Class D') {
-    const classDOptions = [
-      { name: "TPA3116D2", maxVoltage: 30, maxPower: 50, maxCurrent: 7.5, freq: "400 kHz" },
-      { name: "IRS2092S", maxVoltage: 100, maxPower: 200, maxCurrent: 20.0, freq: "350 - 450 kHz" }
-    ];
-
-    const selected = classDOptions.find(c =>
-      supplyVoltage <= c.maxVoltage &&
-      targetPower <= c.maxPower &&
-      iPeak <= c.maxCurrent * 0.75 // Marge de sécurité courant 75%
-    );
-    const moduleName = selected ? selected.name : "IRS2092S (MOSFETs Externes)";
-    const freq = selected ? selected.freq : "300 kHz";
-
-    if (!selected) {
-      const tooMuchCurrent = classDOptions.every(c => iPeak > c.maxCurrent * 0.75);
-      if (tooMuchCurrent) {
-        verdict = 'Non-functional';
-        reasons.push(`Courant de crête (${iPeak.toFixed(1)}A) dépassant la marge de sécurité (75%).`);
-      }
-      recommendation.warnings.push("Marge de sécurité courant non respectée sur IC standards.");
-    }
-
-    recommendation.architecture = `Classe D (${moduleName})`;
-    recommendation.classDSpecifics = {
-      module: moduleName,
-      switchingFreq: freq,
-      filterType: "LC Passe-bas (L=22µH, C=470nF)",
-      recommendedVoltage: targetPower < 60 ? "24V (Simple)" : "±35V à ±50V (Symétrique)"
-    };
-    recommendation.components = [moduleName, "Inducteurs de sortie blindés", "Condensateurs Low-ESR"];
-    recommendation.heatsinkType = curMetrics.dissipatedPower > 15 ? "Petit dissipateur alu" : "Via plan de cuivre PCB";
-
-    if (isThermalFailure) {
-      recommendation.whyRecommended = `Architecture Classe AB impossible thermiquement dans cette configuration. Le passage en Classe D réduit la dissipation à environ ${curMetrics.dissipatedPower.toFixed(0)}W.`;
-    } else if (moduleName === "TPA3116D2") {
-      recommendation.whyRecommended = "Le TPA3116D2 est recommandé pour son rendement élevé, sa facilité d'utilisation et son adéquation aux puissances < 60W.";
-    } else {
-      recommendation.whyRecommended = `Le module ${moduleName} est choisi pour son excellent rendement et sa gestion thermique optimale à ${targetPower}W.`;
-    }
-
-    // BOM for Class D
-    bom.push({ name: "Connecteur Jack Audio", quantity: 1, description: "Entrée signal (Jack 3.5mm)" });
-    bom.push({ name: "Filtre Entrée RC", quantity: 1, description: "10kΩ + 100nF (Couplage)" });
-    bom.push({ name: `IC ${moduleName}`, quantity: 1, description: "Unité de puissance principale" });
-    bom.push({ name: "Filtre Sortie LC", quantity: 2, description: "22µH + 470nF (Passe-bas)" });
-    bom.push({ name: "Condensateurs Découplage", quantity: 2, description: "1000µF + 100nF (Stabilité)" });
-    bom.push({ name: "Bornier HP", quantity: 1, description: "Sortie vers Speaker 8Ω" });
-
-    if (curMetrics.dissipatedPower > 15) {
-      bom.push({ name: "Radiateur", quantity: 1, description: "Dissipateur alu requis" });
-    }
-  } else {
-    recommendation.architecture = "Classe AB (Linéaire)";
-    recommendation.components = targetPower < 60 ? ["LM3886", "TDA7293"] : ["2SC5200/2SA1943"];
-    recommendation.heatsinkType = "Massif";
-    recommendation.whyRecommended = "Excellente fidélité à puissance modérée.";
-
-    // BOM for Class AB
-    if (targetPower < 60) {
-      bom.push({ name: "IC Amplificateur", quantity: 1, description: "LM3886 / TDA7293" });
-    } else {
-      bom.push({ name: "Paire de Puissance", quantity: Math.max(1, Math.ceil(targetPower / 80)), description: "2SC5200 + 2SA1943" });
-    }
-
-    const capValue = Math.ceil((iRms * 3000) / 1000) * 1000;
-    bom.push({ name: "Capacité Filtrage", quantity: supplyType === 'Symmetrical' ? 2 : 1, description: `${capValue}uF / ${Math.ceil(supplyVoltage * 1.4)}V` });
-
-    if (curMetrics.heatsinkResistanceRequired < 10) {
-      bom.push({ name: "Dissipateur Massif", quantity: 1, description: `${curMetrics.heatsinkResistanceRequired.toFixed(1)} °C/W ou mieux` });
-    }
-  }
-
-  const powerSupply = {
-    voltageSymmetrical: `±${Math.ceil(vPeak + (targetClass === 'Class AB' ? 5 : 3))}V`,
-    voltageSimple: `${Math.ceil((vPeak + (targetClass === 'Class AB' ? 5 : 3)) * 2)}V`,
-    minCurrent: `${(iRms * 1.5).toFixed(1)}A`
-  };
-
-  const thd = targetClass === 'Class D' ? 0.1 : 0.5;
-  const tj = ambientTemp + curMetrics.dissipatedPower * (1.0 + (curMetrics.heatsinkResistanceRequired > 0 ? curMetrics.heatsinkResistanceRequired : 5.0));
+  const verdict: 'Functional' | 'Risk' | 'Failed' =
+    warnings.length === 0 ? 'Functional' : warnings.length <= 2 ? 'Risk' : 'Failed';
 
   return {
-    vRms,
-    vPeak,
-    iRms,
-    iPeak,
-    maxTheoreticalPower: maxTheoCur,
-    dissipatedPower: curMetrics.dissipatedPower,
-    efficiency: curMetrics.efficiency,
-    heatsinkResistanceRequired: curMetrics.heatsinkResistanceRequired,
-    thd,
-    tj,
-    verdict,
-    reasons,
-    comparison: {
-      points: comparisonPoints,
-      bestClass
-    },
-    recommendation,
-    bom,
-    powerSupply
+    vcc, vPeak: parseFloat(vPeak.toFixed(2)), iPeak: parseFloat(iPeak.toFixed(2)),
+    iQuiescent, realPower: parseFloat(realPower.toFixed(1)), efficiency: parseFloat(efficiency.toFixed(1)),
+    pdTotal: parseFloat(pdTotal.toFixed(2)), pdPerDevice: parseFloat(pdPerDevice.toFixed(2)),
+    rthRequired: parseFloat(rthRequired.toFixed(2)), tjMax, heatsinkArea: parseFloat(heatsinkArea.toFixed(0)),
+    stages, recommendation: { verdict, warnings, suggestions },
+    blockDiagram: ['IN', 'Cin', 'Driver NPN', 'Driver PNP', 'NPN Out', 'PNP Out', 'Zobel', 'LOAD']
   };
-};
+}
+
+function calculateClassD(p: UserParams): CalculationResults {
+  const warnings: string[] = [];
+  const suggestions: string[] = [];
+
+  const vcc = p.supplyVoltage;
+  const vOutRms = vcc / Math.sqrt(2);
+  const realPower = (vOutRms * vOutRms) / p.loadImpedance;
+  const vPeak = vcc;
+  const iPeak = vPeak / p.loadImpedance;
+  const efficiency = 92.0;
+  const iQuiescent = 10;
+  const pdTotal = realPower * (1 - efficiency / 100);
+  const pdPerDevice = pdTotal / 2;
+  const tjMax = 150;
+  const rthRequired = (tjMax - p.ambientTemp) / Math.max(pdPerDevice, 0.1);
+  const heatsinkArea = Math.max(pdTotal * 2, 10);
+
+  const fSwitching = 400000;
+  const fc = 22000;
+  const deltaI = iPeak * 0.2;
+  const lFilter = vcc / (8 * fSwitching * Math.max(deltaI, 0.01));
+  const lFilterUH = parseFloat((lFilter * 1e6).toFixed(2));
+  const cFilter = 1 / (Math.pow(2 * Math.PI * fc, 2) * lFilter);
+  const cFilterUF = parseFloat((cFilter * 1e6).toFixed(2));
+  const rShunt = parseFloat((0.1 / Math.max(iPeak, 0.1)).toFixed(3));
+  const cBulk = Math.ceil(iPeak * 100);
+
+  const stages: StageResult[] = [
+    {
+      stageName: '1. Modulateur PWM',
+      components: [
+        { label: 'CI contrôleur PWM', value: 'IRS2092 / TPA3116', note: `Fréq. découpage : ${fSwitching / 1000} kHz` },
+        { label: 'Temps mort (Dead-time)', value: '100 ns', note: 'Prévention court-circuit HS/LS' },
+        { label: 'Résistance de grille (Rg)', value: '22 Ω', note: 'Contrôle EMI' },
+        { label: 'Condensateur bootstrap', value: '100 nF', note: 'Alimentation grille MOSFET haut côté' },
+      ]
+    },
+    {
+      stageName: '2. Pont en H (Commutation)',
+      components: [
+        { label: 'MOSFET N-Ch (Q1, Q3)', value: 'IRFZ44N / STP80NF55', note: `Vds > ${(vcc * 1.5).toFixed(0)} V, Id > ${(iPeak * 1.5).toFixed(1)} A` },
+        { label: 'MOSFET N-Ch (Q2, Q4)', value: 'IRFZ44N / STP80NF55', note: 'Symétrique' },
+        { label: 'Diodes de roue libre', value: 'Body diode MOSFET', note: 'ou Schottky ext.' },
+        { label: 'Shunt courant (Rs)', value: `${rShunt} Ω / 1 W`, note: 'Mesure courant' },
+      ]
+    },
+    {
+      stageName: '3. Filtre LC de Sortie',
+      components: [
+        { label: 'Inductance de filtre (L)', value: `${lFilterUH} µH`, note: `fc = ${fc / 1000} kHz` },
+        { label: 'Condensateur de filtre (C)', value: `${cFilterUF} µF`, note: 'Film polypropylène' },
+        { label: "Réseau d'amortissement", value: `${(p.loadImpedance / 2).toFixed(1)} Ω + ${(cFilterUF / 2).toFixed(1)} µF`, note: 'Damping LC' },
+        { label: 'Inductance de mode commun', value: '10–100 µH', note: 'Réduction EMI' },
+      ]
+    },
+    {
+      stageName: '4. Alimentation & Découplage',
+      components: [
+        { label: 'Condensateur de bus', value: `${cBulk} µF / ${Math.ceil(vcc * 1.3)} V`, note: 'Électrolytique basse ESR' },
+        { label: 'Condensateur de découplage', value: '10 µF + 100 nF', note: 'Par MOSFET' },
+        { label: 'Fusible de bus', value: `${(iPeak * 1.5).toFixed(1)} A rapide`, note: 'Protection' },
+        { label: 'TVS', value: `${Math.ceil(vcc * 1.3)} V`, note: 'Protection surtensions' },
+      ]
+    }
+  ];
+
+  if (p.targetPower > realPower * 1.05) {
+    warnings.push(`Puissance demandée (${p.targetPower} W) > max (${realPower.toFixed(1)} W) avec Vbus = ${vcc} V.`);
+    suggestions.push(`Augmentez Vbus à ≥ ${Math.ceil(Math.sqrt(p.targetPower * p.loadImpedance) * Math.sqrt(2))} V.`);
+  }
+  if (vcc < 10) {
+    warnings.push('Tension de bus trop faible pour Classe D (< 10 V).');
+    suggestions.push('Minimum 12 V de bus.');
+  }
+  if (lFilterUH < 2) {
+    warnings.push(`Inductance de filtre faible (${lFilterUH} µH) — instabilité possible.`);
+    suggestions.push('Augmentez L à ≥ 10 µH.');
+  }
+  if (p.loadImpedance < 4) {
+    warnings.push(`Charge ${p.loadImpedance} Ω : courant élevé (${iPeak.toFixed(1)} A) — EMI sévères.`);
+    suggestions.push('MOSFETs Rds(on) < 10 mΩ requis.');
+  }
+
+  const verdict: 'Functional' | 'Risk' | 'Failed' =
+    warnings.length === 0 ? 'Functional' : warnings.length <= 2 ? 'Risk' : 'Failed';
+
+  return {
+    vcc, vPeak: parseFloat(vPeak.toFixed(2)), iPeak: parseFloat(iPeak.toFixed(2)),
+    iQuiescent, realPower: parseFloat(realPower.toFixed(1)), efficiency,
+    pdTotal: parseFloat(pdTotal.toFixed(2)), pdPerDevice: parseFloat(pdPerDevice.toFixed(2)),
+    rthRequired: parseFloat(rthRequired.toFixed(2)), tjMax, heatsinkArea: parseFloat(heatsinkArea.toFixed(0)),
+    stages, recommendation: { verdict, warnings, suggestions },
+    blockDiagram: ['IN', 'PWM Mod.', 'Gate Drive', 'H-Bridge', 'Filtre LC', 'LOAD']
+  };
+}
+
+export function calculateAmplifier(params: UserParams): CalculationResults {
+  if (params.ampClass === 'Class D') return calculateClassD(params);
+  return calculateClassAB(params);
+}

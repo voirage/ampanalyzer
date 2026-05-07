@@ -1,155 +1,175 @@
-import React from 'react';
-import type { UserParams, SupplyType, AmplifierClass } from '../logic/amplifierCalculator';
+import { useMemo } from 'react';
+import type { UserParams } from '../logic/amplifierCalculator';
 
-interface CalculatorFormProps {
+interface Props {
   params: UserParams;
-  setParams: (params: UserParams) => void;
+  setParams: React.Dispatch<React.SetStateAction<UserParams>>;
 }
 
-const clamp = (value: number, min: number, max: number) => {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(max, Math.max(min, value));
-};
+const POWER_PRESETS = [10, 25, 50, 100, 200, 500];
+const IMPEDANCE_OPTIONS = [2, 4, 8, 16];
 
-const requiredVoltageForPower = (power: number, impedance: number) => {
-  return Math.ceil(Math.sqrt(power * impedance) * Math.SQRT2 * 1.15);
-};
+export default function CalculatorForm({ params, setParams }: Props) {
+  const set = <K extends keyof UserParams>(key: K, value: UserParams[K]) =>
+    setParams(prev => ({ ...prev, [key]: value }));
 
-const maxPowerForVoltage = (voltage: number, impedance: number) => {
-  return Math.floor(((voltage / 1.15) / Math.SQRT2) ** 2 / impedance);
-};
+  const hints = useMemo(() => {
+    const vcc = params.supplyType === 'Symmetrical'
+      ? params.supplyVoltage
+      : params.supplyVoltage / 2;
+    const vSat = params.ampClass === 'Class AB' ? 2.5 : 0;
+    const vSwing = vcc - vSat;
 
-const CalculatorForm: React.FC<CalculatorFormProps> = ({ params, setParams }) => {
-  const voltageMin = Math.max(5, requiredVoltageForPower(params.targetPower, params.loadImpedance));
-  const powerMax = Math.min(100, Math.max(1, maxPowerForVoltage(params.supplyVoltage, params.loadImpedance)));
+    const maxPower = params.ampClass === 'Class AB'
+      ? (vSwing * vSwing) / (2 * params.loadImpedance)
+      : ((vcc / Math.sqrt(2)) ** 2) / params.loadImpedance;
 
-  const setSupplyType = (type: SupplyType) => setParams({ ...params, supplyType: type });
-  const setAmpClass = (cls: AmplifierClass) => setParams({ ...params, ampClass: cls });
+    let vMin = params.ampClass === 'Class AB'
+      ? Math.sqrt(2 * params.targetPower * params.loadImpedance) + vSat
+      : Math.sqrt(params.targetPower * params.loadImpedance) * Math.sqrt(2);
+    if (params.ampClass === 'Class AB' && params.supplyType === 'Single') vMin *= 2;
+
+    const iPeak = Math.sqrt(2 * Math.min(params.targetPower, Math.max(maxPower, 0.1)) * params.loadImpedance) / params.loadImpedance;
+
+    return {
+      maxPower: Math.round(maxPower * 10) / 10,
+      vMin: Math.ceil(vMin),
+      iPeak: Math.round(iPeak * 100) / 100,
+      powerOk: params.targetPower <= maxPower * 1.02,
+      voltageOk: params.supplyVoltage >= vMin,
+    };
+  }, [params]);
 
   return (
-    <div className="glass-card animate-fade" style={{ height: 'fit-content' }}>
-      <h3 style={{ marginBottom: '1.5rem', fontSize: '1.2rem', fontWeight: 700 }}>
-        Paramètres de Conception
-      </h3>
-
-      <div className="form-group">
-        <label>Puissance de sortie (W)</label>
-        <input
-          type="number"
-          name="targetPower"
-          value={params.targetPower}
-          onChange={(e) => {
-            const value = clamp(Number(e.target.value), 1, powerMax);
-            setParams({ ...params, targetPower: value });
-          }}
-          className="input-control"
-          min={1}
-          max={powerMax}
-        />
-        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-          Limite actuelle avec {params.supplyVoltage}V / {params.loadImpedance}Ω : {powerMax}W
-        </p>
+    <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <div style={{ borderBottom: '1px solid var(--border-glass)', paddingBottom: '1rem' }}>
+        <h2 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'white' }}>Paramètres de Conception</h2>
       </div>
 
+      {/* Puissance */}
       <div className="form-group">
-        <label>Impédance de charge (Ω)</label>
-        <div className="toggle-group" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-          {[2, 4, 8, 16].map((z) => (
-            <button
-              key={z}
-              className={`toggle-btn ${params.loadImpedance === z ? 'active' : ''}`}
-              onClick={() => {
-                const nextPowerMax = Math.min(100, Math.max(1, maxPowerForVoltage(params.supplyVoltage, z)));
-                setParams({
-                  ...params,
-                  loadImpedance: z,
-                  targetPower: clamp(params.targetPower, 1, nextPowerMax),
-                });
-              }}
-              type="button"
-            >
-              {z}
-            </button>
+        <label>PUISSANCE DE SORTIE (W)</label>
+        <div style={{ position: 'relative' }}>
+          <input type="number" className="input-control" value={params.targetPower} min={1} max={5000}
+            onChange={e => set('targetPower', Math.max(1, parseFloat(e.target.value) || 1))}
+            style={{ borderColor: hints.powerOk ? 'var(--border-glass)' : 'rgba(255,75,43,0.5)', paddingRight: '2.5rem' }}
+          />
+          <span style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>W</span>
+        </div>
+        <p style={{ fontSize: '0.75rem', marginTop: '0.35rem', color: hints.powerOk ? 'var(--text-muted)' : 'var(--accent-red)' }}>
+          {hints.powerOk
+            ? `Limite actuelle avec ${params.supplyVoltage}V / ${params.loadImpedance}Ω : ${hints.maxPower} W`
+            : `⚠ Max atteignable : ${hints.maxPower} W — augmentez la tension`}
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem' }}>
+          {POWER_PRESETS.map(w => (
+            <button key={w} onClick={() => set('targetPower', w)} style={{
+              padding: '0.25rem 0.65rem', borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, transition: 'all 0.15s',
+              border: `1px solid ${params.targetPower === w ? 'var(--accent-cyan)' : 'var(--border-glass)'}`,
+              background: params.targetPower === w ? 'rgba(0,242,255,0.1)' : 'transparent',
+              color: params.targetPower === w ? 'var(--accent-cyan)' : 'var(--text-muted)',
+            }}>{w} W</button>
           ))}
         </div>
       </div>
 
+      {/* Impédance */}
       <div className="form-group">
-        <label>Tension d'alimentation (V)</label>
-        <input
-          type="number"
-          name="supplyVoltage"
-          value={params.supplyVoltage}
-          onChange={(e) => {
-            const value = clamp(Number(e.target.value), voltageMin, 35);
-            setParams({ ...params, supplyVoltage: value });
-          }}
-          className="input-control"
-          min={voltageMin}
-          max={35}
-        />
-        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-          Minimum actuel pour {params.targetPower}W / {params.loadImpedance}Ω : {voltageMin}V
+        <label>IMPÉDANCE DE CHARGE (Ω)</label>
+        <div className="toggle-group" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          {IMPEDANCE_OPTIONS.map(ohm => (
+            <button key={ohm} className={`toggle-btn ${params.loadImpedance === ohm ? 'active' : ''}`} onClick={() => set('loadImpedance', ohm)}>
+              {ohm} Ω
+            </button>
+          ))}
+        </div>
+        <p style={{ fontSize: '0.75rem', marginTop: '0.35rem', color: 'var(--text-muted)' }}>
+          Courant crête : <strong style={{ color: 'var(--accent-cyan)' }}>{hints.iPeak} A</strong>
+          {params.loadImpedance <= 4 && <span style={{ color: 'var(--accent-orange)', marginLeft: '0.5rem' }}>· Charge faible ⚠</span>}
         </p>
       </div>
 
+      {/* Tension */}
       <div className="form-group">
-        <label>Type d'alimentation</label>
-        <div className="toggle-group">
-          <button
-            className={`toggle-btn ${params.supplyType === 'Simple' ? 'active' : ''}`}
-            onClick={() => setSupplyType('Simple')}
-            type="button"
-          >
-            Simple
-          </button>
-          <button
-            className={`toggle-btn ${params.supplyType === 'Symmetrical' ? 'active' : ''}`}
-            onClick={() => setSupplyType('Symmetrical')}
-            type="button"
-          >
-            Symétrique
-          </button>
+        <label>TENSION D'ALIMENTATION (V)</label>
+        <div style={{ position: 'relative', marginBottom: '0.5rem' }}>
+          <input type="number" className="input-control" value={params.supplyVoltage} min={5} max={120}
+            onChange={e => set('supplyVoltage', Math.max(5, parseFloat(e.target.value) || 5))}
+            style={{ borderColor: hints.voltageOk ? 'var(--border-glass)' : 'rgba(255,157,0,0.5)', paddingRight: '2.5rem' }}
+          />
+          <span style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>V</span>
         </div>
-      </div>
-
-      <div className="form-group">
-        <label>Classe d'amplification</label>
-        <div className="toggle-group">
-          <button
-            className={`toggle-btn ${params.ampClass === 'Class AB' ? 'active' : ''}`}
-            onClick={() => setAmpClass('Class AB')}
-            type="button"
-          >
-            Class AB
-          </button>
-          <button
-            className={`toggle-btn ${params.ampClass === 'Class D' ? 'active' : ''}`}
-            onClick={() => setAmpClass('Class D')}
-            type="button"
-          >
-            Class D
-          </button>
-        </div>
-      </div>
-
-      <div className="form-group">
-        <label>Température Ambiante (°C)</label>
-        <input
-          type="number"
-          name="ambientTemp"
-          value={params.ambientTemp}
-          onChange={(e) => {
-            const value = clamp(Number(e.target.value), 0, 80);
-            setParams({ ...params, ambientTemp: value });
-          }}
-          className="input-control"
-          min={0}
-          max={80}
+        <input type="range" min={5} max={100} step={1} value={params.supplyVoltage}
+          onChange={e => set('supplyVoltage', parseFloat(e.target.value))}
+          style={{ width: '100%', accentColor: hints.voltageOk ? 'var(--accent-cyan)' : 'var(--accent-orange)', marginBottom: '0.35rem' }}
         />
+        <p style={{ fontSize: '0.75rem', color: hints.voltageOk ? 'var(--text-muted)' : 'var(--accent-orange)' }}>
+          {hints.voltageOk
+            ? `Minimum actuel pour ${params.targetPower}W / ${params.loadImpedance}Ω : ${hints.vMin}V`
+            : `⚠ Tension insuffisante ! Minimum requis : ${hints.vMin} V`}
+        </p>
+      </div>
+
+      {/* Type alimentation */}
+      <div className="form-group">
+        <label>TYPE D'ALIMENTATION</label>
+        <div className="toggle-group">
+          {(['Single', 'Symmetrical'] as const).map(t => (
+            <button key={t} className={`toggle-btn ${params.supplyType === t ? 'active' : ''}`} onClick={() => set('supplyType', t)}>
+              {t === 'Symmetrical' ? 'Symétrique' : 'Simple'}
+            </button>
+          ))}
+        </div>
+        <p style={{ fontSize: '0.75rem', marginTop: '0.35rem', color: 'var(--text-muted)' }}>
+          {params.supplyType === 'Symmetrical' ? `Rail : ±${params.supplyVoltage} V` : `Rail : +${params.supplyVoltage} V / GND`}
+        </p>
+      </div>
+
+      {/* Classe */}
+      <div className="form-group">
+        <label>CLASSE D'AMPLIFICATION</label>
+        <div className="toggle-group">
+          {(['Class AB', 'Class D'] as const).map(cls => (
+            <button key={cls} className={`toggle-btn ${params.ampClass === cls ? 'active' : ''}`} onClick={() => set('ampClass', cls)}>
+              {cls}
+            </button>
+          ))}
+        </div>
+        <p style={{ fontSize: '0.75rem', marginTop: '0.35rem', color: 'var(--text-muted)' }}>
+          {params.ampClass === 'Class AB' ? '🎵 Hi-Fi · THD < 0.1% · Rendement ~78%' : '⚡ Efficacité ~92% · Filtre LC obligatoire'}
+        </p>
+      </div>
+
+      {/* Température */}
+      <div className="form-group">
+        <label>TEMPÉRATURE AMBIANTE (°C)</label>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <input type="range" min={-10} max={70} step={5} value={params.ambientTemp}
+            onChange={e => set('ambientTemp', parseFloat(e.target.value))}
+            style={{ flex: 1, accentColor: params.ambientTemp > 40 ? 'var(--accent-red)' : 'var(--accent-orange)' }}
+          />
+          <div style={{ minWidth: '56px', textAlign: 'center', fontWeight: 800, fontSize: '1rem', color: params.ambientTemp > 40 ? 'var(--accent-red)' : 'var(--accent-orange)', background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', padding: '0.3rem 0.5rem' }}>
+            {params.ambientTemp} °C
+          </div>
+        </div>
+      </div>
+
+      {/* Résumé */}
+      <div style={{ background: hints.powerOk && hints.voltageOk ? 'rgba(0,255,128,0.04)' : 'rgba(255,157,0,0.04)', border: `1px solid ${hints.powerOk && hints.voltageOk ? 'rgba(0,255,128,0.15)' : 'rgba(255,157,0,0.2)'}`, borderRadius: '0.75rem', padding: '0.85rem 1rem', fontSize: '0.8rem', lineHeight: 1.8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+          <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.5rem', borderRadius: '1rem', fontWeight: 800, background: hints.powerOk && hints.voltageOk ? 'rgba(0,255,128,0.15)' : 'rgba(255,157,0,0.15)', color: hints.powerOk && hints.voltageOk ? '#00ff80' : 'var(--accent-orange)' }}>
+            {hints.powerOk && hints.voltageOk ? 'VALIDE' : 'ATTENTION'}
+          </span>
+          <span style={{ fontWeight: 700, color: 'white', fontSize: '0.82rem' }}>Résumé</span>
+        </div>
+        <div style={{ color: 'var(--text-muted)' }}>
+          <strong style={{ color: 'white' }}>{params.ampClass}</strong>{' · '}
+          <strong style={{ color: 'var(--accent-cyan)' }}>{params.targetPower} W</strong>{' · '}
+          {params.loadImpedance} Ω{' · '}
+          {params.supplyType === 'Symmetrical' ? `±${params.supplyVoltage} V` : `${params.supplyVoltage} V`}{' · '}
+          {params.ambientTemp} °C
+        </div>
       </div>
     </div>
   );
-};
-
-export default CalculatorForm;
+}

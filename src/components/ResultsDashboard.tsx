@@ -1,665 +1,431 @@
-import React from 'react';
+import { useState } from 'react';
 import type { CalculationResults, UserParams } from '../logic/amplifierCalculator';
-import { Zap, Activity, Thermometer, ShieldCheck, AlertTriangle, XCircle, Download, Save, Gauge, Lock } from 'lucide-react';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import html2canvas from 'html2canvas';
-import { generateCircuit } from "../logic/circuitGenerator";
-import CircuitSchematic from "./CircuitSchematic";
+import { calculateAmplifier } from '../logic/amplifierCalculator';
+import { generatePDFReport } from '../logic/pdfGenerator';
+import { Zap, Thermometer, ShieldCheck, Download, Save, AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react';
 
-interface ResultsDashboardProps {
+interface Props {
   results: CalculationResults;
   params: UserParams;
+  isExpert: boolean;
+  isPremium: boolean;
   onSave: () => void;
-  isExpert?: boolean;
-  isPremium?: boolean;
 }
 
-const ResultsDashboard: React.FC<ResultsDashboardProps> = ({ results, params, onSave, isExpert, isPremium }) => {
-  const archBest = results.comparison.bestClass === 'Class D' ? 'Classe D' : 'Classe AB';
-  const architectureChoisie = results.comparison.bestClass
-    ? archBest
-    : results.recommendation.architecture.includes('Classe D')
-      ? 'Classe D'
-      : 'Classe AB';
+// ── Schéma SVG Classe AB ──────────────────────────────────────
+function SchematicAB({ vcc, rl }: { vcc: number; rl: number }) {
+  const [selected, setSelected] = useState<string | null>(null);
 
-  const headroom = typeof (results as any).headroom === 'number' ? (results as any).headroom : 0;
-  const tj = typeof (results as any).tj === 'number' ? (results as any).tj : 0;
-  const mainComponent = results.recommendation.components[0] || 'Standard IC';
-  let circuit = null;
-
-  try {
-    circuit = generateCircuit({
-      targetPower: params.targetPower,
-      loadImpedance: params.loadImpedance,
-      supplyVoltage: params.supplyVoltage,
-      ampClass: params.ampClass,
-      supplyType: params.supplyType,
-      ambientTemp: params.ambientTemp,
-    });
-  } catch (error) {
-    console.error("Erreur génération circuit :", error);
-  }
-
-
-
-
-
-
-
-
-
-  const getVerdictBadgeClass = () => {
-    switch (results.verdict) {
-      case 'Functional': return 'badge-functional';
-      case 'At Risk': return 'badge-risk';
-      case 'Non-functional': return 'badge-failed';
-      default: return 'badge-risk';
-    }
+  const info: Record<string, string> = {
+    C1: 'C1 — Condensateur de couplage (1 µF)\nBloque le DC, laisse passer l\'audio à 20 Hz.',
+    R1: 'R1 — Résistance d\'entrée (22 kΩ)\nAdaptation impédance entre source et ampli.',
+    LM3886: `LM3886 / TDA7294 — CI amplificateur intégré\nAmplifie le signal audio. Alimenté en ±${vcc} V.`,
+    Rfb1: 'Rfb1 — Résistance feedback (1 kΩ)\nFixe le gain avec Rfb2.',
+    Rfb2: 'Rfb2 — Résistance feedback (22 kΩ)\nGain = 1 + 22k/1k = 23× (≈ 27 dB).',
+    Rs: 'Rs — Résistance série de sortie (0.22 Ω)\nProtège contre les oscillations HF.',
+    HP: `HP — Haut-parleur (${rl} Ω)\nCharge résistive principale de l\'amplificateur.`,
   };
-
-  const getVerdictIcon = () => {
-    switch (results.verdict) {
-      case 'Functional': return <ShieldCheck color="#00ff80" />;
-      case 'At Risk': return <AlertTriangle color="#ff9d00" />;
-      case 'Non-functional': return <XCircle color="#ff4b2b" />;
-      default: return <AlertTriangle color="#ff9d00" />;
-    }
-  };
-
-  const generatePDF = async () => {
-    const pdfResults = results;
-    const pdfCircuit: any = circuit;
-
-    const pdfArchitecture =
-      pdfCircuit?.architecture ||
-      pdfCircuit?.topology ||
-      architectureChoisie;
-
-    const pdfMainComponent =
-      pdfCircuit?.mainComponent ||
-      pdfCircuit?.ic ||
-      pdfCircuit?.component ||
-      mainComponent;
-
-    const pdfBom =
-      pdfCircuit?.bom && pdfCircuit.bom.length > 0
-        ? pdfCircuit.bom
-        : results.bom;
-
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-
-    doc.setFillColor(10, 10, 12);
-    doc.rect(0, 0, pageWidth, 40, "F");
-    doc.setTextColor(0, 242, 255);
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.text("AmpAnalyzer - Rapport Technique", 20, 25);
-
-    doc.setTextColor(150, 150, 150);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Généré le : ${new Date().toLocaleString()}`, 20, 50);
-    doc.text("Version logicielle : MVP 1.0", 20, 56);
-
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("1. Paramètres de Conception", 20, 70);
-
-    autoTable(doc, {
-      startY: 75,
-      head: [["Paramètre", "Valeur"]],
-      body: [
-        ["Puissance Cible", `${params.targetPower} W`],
-        ["Impédance HP", `${params.loadImpedance} Ω`],
-        ["Alimentation", `${params.supplyVoltage} V (${params.supplyType})`],
-        ["Classe choisie", params.ampClass],
-        ["Température ambiante", `${params.ambientTemp} °C`],
-      ],
-      theme: "grid",
-      headStyles: { fillColor: [0, 180, 190], textColor: [255, 255, 255] },
-    });
-
-    const finalY1 = (doc as any).lastAutoTable?.finalY || 75;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text("2. Résultats d'Analyse Électrique & Thermique", 20, finalY1 + 15);
-
-    autoTable(doc, {
-      startY: finalY1 + 20,
-      head: [["Domaine", "Indicateur", "Valeur"]],
-      body: [
-        ["Électrique", "Tension RMS", `${pdfResults.vRms.toFixed(2)} V`],
-        ["Électrique", "Tension Crête", `${pdfResults.vPeak.toFixed(2)} V`],
-        ["Électrique", "Courant RMS", `${pdfResults.iRms.toFixed(2)} A`],
-        ["Électrique", "Courant Crête", `${pdfResults.iPeak.toFixed(2)} A`],
-        ["Électrique", "Puissance max théorique", `${pdfResults.maxTheoreticalPower.toFixed(1)} W`],
-        ["Électrique", "Efficacité estimée", `${(pdfResults.efficiency * 100).toFixed(0)} %`],
-        ["Électrique", "THD estimé", `${pdfResults.thd.toFixed(1)} %`],
-        ["Thermique", "Puissance dissipée", `${pdfResults.dissipatedPower.toFixed(1)} W`],
-        ["Thermique", "Température jonction", `${tj.toFixed(0)} °C`],
-        ["Thermique", "Dissipateur requis", pdfResults.recommendation.heatsinkType],
-      ],
-      theme: "striped",
-    });
-
-    const finalY2 = (doc as any).lastAutoTable?.finalY || finalY1 + 20;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text("3. Verdict de Faisabilité", 20, finalY2 + 15);
-
-    const verdictColor: [number, number, number] =
-      pdfResults.verdict === "Functional"
-        ? [0, 180, 0]
-        : pdfResults.verdict === "At Risk"
-          ? [180, 120, 0]
-          : [220, 0, 0];
-
-    doc.setTextColor(verdictColor[0], verdictColor[1], verdictColor[2]);
-    doc.setFontSize(16);
-    doc.text(`STATUT : ${pdfResults.verdict}`, 20, finalY2 + 25);
-
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "italic");
-    doc.text(pdfResults.reasons[0] || "Aucun problème critique détecté.", 20, finalY2 + 32);
-
-    doc.addPage();
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text("4. Comparatif des Architectures", 20, 20);
-
-    autoTable(doc, {
-      startY: 25,
-      head: [["Classe", "Viabilité", "Rendement", "Dissipation", "Complexité"]],
-      body: pdfResults.comparison.points.map((p) => [
-        p.ampClass,
-        p.isViable ? "OUI" : "NON",
-        `${(p.efficiency * 100).toFixed(0)} %`,
-        `${p.dissipation.toFixed(1)} W`,
-        p.complexity,
-      ]),
-      headStyles: { fillColor: [40, 44, 52], textColor: [255, 255, 255] },
-    });
-
-    const finalY3 = (doc as any).lastAutoTable?.finalY || 25;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text("5. Solution Technique Préconisée", 20, finalY3 + 15);
-
-    doc.setFontSize(11);
-    doc.text(`Architecture : ${pdfArchitecture} (${pdfMainComponent})`, 20, finalY3 + 23);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    const whyText = pdfResults.recommendation.whyRecommended || "Solution choisie selon les paramètres fournis.";
-    const splitWhy = doc.splitTextToSize(whyText, pageWidth - 40);
-    doc.text(splitWhy, 20, finalY3 + 30);
-
-    const finalY4 = finalY3 + 35 + splitWhy.length * 5;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text(`6. Schéma de principe (${pdfArchitecture})`, 20, finalY4 + 10);
-
-    doc.setFont("courier", "normal");
-    doc.setFontSize(10);
-
-    const schematic =
-      String(pdfArchitecture).includes("D")
-        ? [
-          `[Audio In] --Filtre entrée--> [${pdfMainComponent}] --MOSFET/LC--> [HP ${params.loadImpedance}Ω]`,
-          "                                |",
-          `                              Alim ${params.supplyVoltage}V ${params.supplyType}`,
-        ]
-        : [
-          `[Audio In] --C/R entrée--> [${pdfMainComponent}] --Sortie--> [HP ${params.loadImpedance}Ω]`,
-          "                              |",
-          `                            Alim ${params.supplyVoltage}V ${params.supplyType}`,
-        ];
-
-    const schematicElement = document.getElementById('circuit-schematic-pdf');
-
-    if (schematicElement) {
-      const canvas = await html2canvas(schematicElement, {
-        backgroundColor: '#0d1117',
-        scale: 2,
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const imgWidth = pageWidth - 40;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      doc.addImage(imgData, 'PNG', 20, finalY4 + 15, imgWidth, imgHeight);
-    } else {
-      doc.text(schematic, 20, finalY4 + 20);
-    }
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text(`7. Liste des Composants (BOM - ${pdfArchitecture})`, 20, finalY4 + 48);
-
-    autoTable(doc, {
-      startY: finalY4 + 55,
-      head: [["Réf.", "Composant", "Valeur", "Qté", "Rôle / Description"]],
-      body: pdfBom.map((item: any) => [
-        item.ref || "-",
-        item.name || "Composant",
-        item.value || "-",
-        String(item.quantity ?? 1),
-        item.role || item.description || "-",
-      ]),
-      theme: "grid",
-      headStyles: { fillColor: [0, 160, 130], textColor: [255, 255, 255] },
-    });
-
-    const finalY5 = (doc as any).lastAutoTable?.finalY || finalY4 + 55;
-
-    doc.setFillColor(255, 248, 230);
-    doc.rect(20, finalY5 + 10, pageWidth - 40, 35, "F");
-    doc.setTextColor(180, 120, 0);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text("NOTE DE SÉCURITÉ IMPORTANTE", 25, finalY5 + 18);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text(
-      [
-        "Ce rapport est généré à titre indicatif sur la base de modèles mathématiques.",
-        "Une validation humaine par un ingénieur qualifié est indispensable avant toute réalisation.",
-        "Le prototypage réel peut présenter des comportements imprévus : EMI, bruit, instabilité thermique.",
-        "AmpAnalyzer ne pourra être tenu responsable des dommages liés à l'usage de ce rapport.",
-      ],
-      25,
-      finalY5 + 24
-    );
-
-    const pageCount = (doc as any).internal.getNumberOfPages();
-
-    for (let i = 1; i <= pageCount; i += 1) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text(
-        `Page ${i} sur ${pageCount} - AmpAnalyzer MVP - Outil de Conception`,
-        pageWidth / 2,
-        doc.internal.pageSize.getHeight() - 10,
-        { align: "center" }
-      );
-    }
-
-    doc.save(`AmpAnalyzer_Report_${params.targetPower}W_${params.loadImpedance}ohm.pdf`);
-  };
-
 
   return (
-    <div className="animate-fade">
-      <div className="results-grid">
-        <div className="glass-card metric-card">
-          <div className="metric-label"><Zap size={16} /> Tension Sortie</div>
-          <div className="metric-value">
-            {results.vRms.toFixed(1)}
-            <span className="metric-unit">Vrms</span>
-          </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Crête: {results.vPeak.toFixed(1)}V | THD: {results.thd.toFixed(1)}%
-          </div>
-        </div>
+    <div>
+      <p style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', marginBottom: '0.5rem', fontWeight: 600 }}>
+        Schéma proposé — Classe AB
+      </p>
+      <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+        Entrée audio + amplificateur linéaire + feedback + sortie HP
+      </p>
+      <svg viewBox="0 0 700 260" style={{ width: '100%', background: 'transparent' }}>
+        {/* Lignes signal */}
+        <line x1="60" y1="130" x2="110" y2="130" stroke="#00f2ff" strokeWidth="1.5" />
+        <line x1="155" y1="130" x2="205" y2="130" stroke="#00f2ff" strokeWidth="1.5" />
+        <line x1="250" y1="130" x2="275" y2="130" stroke="#00f2ff" strokeWidth="1.5" />
+        <line x1="425" y1="130" x2="475" y2="130" stroke="#00f2ff" strokeWidth="1.5" />
+        <line x1="510" y1="130" x2="560" y2="130" stroke="#00f2ff" strokeWidth="1.5" />
+        <line x1="620" y1="130" x2="650" y2="130" stroke="#00f2ff" strokeWidth="1.5" />
+        {/* Feedback */}
+        <line x1="360" y1="60" x2="360" y2="30" stroke="#ff4b2b" strokeWidth="1.5" />
+        <line x1="300" y1="30" x2="420" y2="30" stroke="#ff4b2b" strokeWidth="1.5" strokeDasharray="4" />
+        <line x1="300" y1="30" x2="300" y2="90" stroke="#ff4b2b" strokeWidth="1.5" />
+        <line x1="300" y1="90" x2="275" y2="90" stroke="#ff4b2b" strokeWidth="1.5" />
+        <text x="360" y="25" fill="#ff4b2b" fontSize="9" textAnchor="middle">+VCC</text>
+        {/* GND */}
+        <line x1="360" y1="200" x2="360" y2="220" stroke="#888" strokeWidth="1.5" />
+        <line x1="345" y1="220" x2="375" y2="220" stroke="#888" strokeWidth="1.5" />
+        <line x1="350" y1="224" x2="370" y2="224" stroke="#888" strokeWidth="1" />
+        <text x="360" y="242" fill="#888" fontSize="9" textAnchor="middle">GND</text>
+        <text x="30" y="125" fill="#a0a0a8" fontSize="9">Audio</text>
+        <text x="30" y="135" fill="#a0a0a8" fontSize="9">IN</text>
+        {/* C1 */}
+        <g onClick={() => setSelected(selected === 'C1' ? null : 'C1')} style={{ cursor: 'pointer' }}>
+          <rect x="110" y="118" width="18" height="24" rx="2" fill={selected === 'C1' ? 'rgba(0,242,255,0.2)' : 'rgba(255,255,255,0.04)'} stroke={selected === 'C1' ? '#00f2ff' : '#444'} strokeWidth="1" />
+          <line x1="116" y1="118" x2="116" y2="142" stroke="#00f2ff" strokeWidth="2" />
+          <line x1="122" y1="118" x2="122" y2="142" stroke="#00f2ff" strokeWidth="2" />
+          <text x="119" y="155" fill="#a0a0a8" fontSize="8" textAnchor="middle">C1</text>
+          <text x="119" y="164" fill="#666" fontSize="7" textAnchor="middle">1 µF</text>
+        </g>
+        {/* R1 */}
+        <g onClick={() => setSelected(selected === 'R1' ? null : 'R1')} style={{ cursor: 'pointer' }}>
+          <rect x="205" y="120" width="45" height="20" rx="3" fill={selected === 'R1' ? 'rgba(0,242,255,0.2)' : 'rgba(255,255,255,0.04)'} stroke={selected === 'R1' ? '#00f2ff' : '#444'} strokeWidth="1" />
+          <text x="227" y="133" fill="white" fontSize="9" textAnchor="middle">R1</text>
+          <text x="227" y="153" fill="#a0a0a8" fontSize="8" textAnchor="middle">22 kΩ</text>
+        </g>
+        {/* LM3886 */}
+        <g onClick={() => setSelected(selected === 'LM3886' ? null : 'LM3886')} style={{ cursor: 'pointer' }}>
+          <rect x="275" y="60" width="150" height="140" rx="8"
+            fill={selected === 'LM3886' ? 'rgba(0,114,255,0.25)' : 'rgba(0,114,255,0.1)'}
+            stroke={selected === 'LM3886' ? '#0072ff' : 'rgba(0,114,255,0.5)'} strokeWidth="1.5" />
+          <text x="350" y="120" fill="white" fontSize="11" textAnchor="middle" fontWeight="bold">LM3886</text>
+          <text x="350" y="135" fill="#a0a0a8" fontSize="9" textAnchor="middle">/ TDA7294</text>
+          <text x="350" y="155" fill="#555" fontSize="8" textAnchor="middle">±{vcc}V</text>
+          <text x="282" y="133" fill="#00f2ff" fontSize="7">IN+</text>
+          <text x="405" y="133" fill="#00f2ff" fontSize="7">OUT</text>
+        </g>
+        {/* Rfb1 */}
+        <g onClick={() => setSelected(selected === 'Rfb1' ? null : 'Rfb1')} style={{ cursor: 'pointer' }}>
+          <rect x="290" y="83" width="35" height="16" rx="3" fill={selected === 'Rfb1' ? 'rgba(255,75,43,0.2)' : 'rgba(255,255,255,0.04)'} stroke={selected === 'Rfb1' ? '#ff4b2b' : '#444'} strokeWidth="1" />
+          <text x="307" y="94" fill="white" fontSize="8" textAnchor="middle">Rfb1</text>
+          <text x="307" y="78" fill="#a0a0a8" fontSize="7" textAnchor="middle">1 kΩ</text>
+        </g>
+        {/* Rfb2 */}
+        <g onClick={() => setSelected(selected === 'Rfb2' ? null : 'Rfb2')} style={{ cursor: 'pointer' }}>
+          <rect x="330" y="83" width="35" height="16" rx="3" fill={selected === 'Rfb2' ? 'rgba(255,75,43,0.2)' : 'rgba(255,255,255,0.04)'} stroke={selected === 'Rfb2' ? '#ff4b2b' : '#444'} strokeWidth="1" />
+          <text x="347" y="94" fill="white" fontSize="8" textAnchor="middle">Rfb2</text>
+          <text x="347" y="78" fill="#a0a0a8" fontSize="7" textAnchor="middle">22 kΩ</text>
+        </g>
+        {/* Rs */}
+        <g onClick={() => setSelected(selected === 'Rs' ? null : 'Rs')} style={{ cursor: 'pointer' }}>
+          <rect x="475" y="120" width="35" height="20" rx="3" fill={selected === 'Rs' ? 'rgba(0,242,255,0.2)' : 'rgba(255,255,255,0.04)'} stroke={selected === 'Rs' ? '#00f2ff' : '#444'} strokeWidth="1" />
+          <text x="492" y="133" fill="white" fontSize="8" textAnchor="middle">Rs</text>
+          <text x="492" y="152" fill="#a0a0a8" fontSize="7" textAnchor="middle">0.22 Ω</text>
+        </g>
+        {/* HP */}
+        <g onClick={() => setSelected(selected === 'HP' ? null : 'HP')} style={{ cursor: 'pointer' }}>
+          <polygon points="560,112 580,120 580,140 560,148" fill={selected === 'HP' ? 'rgba(0,242,255,0.15)' : 'rgba(255,255,255,0.05)'} stroke={selected === 'HP' ? '#00f2ff' : '#666'} strokeWidth="1.5" />
+          <line x1="580" y1="113" x2="595" y2="105" stroke={selected === 'HP' ? '#00f2ff' : '#666'} strokeWidth="1.5" />
+          <line x1="580" y1="147" x2="595" y2="155" stroke={selected === 'HP' ? '#00f2ff' : '#666'} strokeWidth="1.5" />
+          <line x1="595" y1="105" x2="595" y2="155" stroke={selected === 'HP' ? '#00f2ff' : '#666'} strokeWidth="1.5" />
+          <line x1="595" y1="130" x2="620" y2="130" stroke="#00f2ff" strokeWidth="1.5" />
+          <text x="585" y="172" fill="#a0a0a8" fontSize="8" textAnchor="middle">HP</text>
+          <text x="585" y="181" fill="#555" fontSize="7" textAnchor="middle">{rl} Ω</text>
+        </g>
+        <text x="300" y="22" fill="#ff4b2b" fontSize="8">Boucle de Feedback</text>
+        <text x="360" y="252" fill="#555" fontSize="8" textAnchor="middle">Alimentation symétrique</text>
+      </svg>
 
-        <div className="glass-card metric-card">
-          <div className="metric-label"><Activity size={16} /> Courant</div>
-          <div className="metric-value">
-            {results.iRms.toFixed(1)}
-            <span className="metric-unit">Arms</span>
-          </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Crête: {results.iPeak.toFixed(1)}A
-          </div>
-        </div>
-
-        <div className="glass-card metric-card">
-          <div className="metric-label"><Thermometer size={16} /> Dissipation</div>
-          <div className="metric-value" style={{ color: results.dissipatedPower > 50 ? 'var(--accent-orange)' : 'white' }}>
-            {results.dissipatedPower.toFixed(0)}
-            <span className="metric-unit">W</span>
-          </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Efficacité: {(results.efficiency * 100).toFixed(0)}% | Tj: {tj.toFixed(0)}°C
-          </div>
-        </div>
-
-        <div className="glass-card metric-card">
-          <div className="metric-label"><ShieldCheck size={16} /> P. Max Théorique</div>
-          <div className="metric-value">
-            {results.maxTheoreticalPower.toFixed(0)}
-            <span className="metric-unit">W</span>
-          </div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Limite Alim
-          </div>
-        </div>
+      {/* Info composant */}
+      <div style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(0,0,0,0.3)', borderRadius: '0.5rem', border: '1px solid var(--border-glass)', fontSize: '0.82rem', minHeight: '55px', whiteSpace: 'pre-line' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Composant sélectionné</span>
+        <p style={{ marginTop: '0.3rem', color: selected ? 'white' : 'var(--text-muted)' }}>
+          {selected ? info[selected] ?? selected : 'Aucun composant sélectionné.'}
+        </p>
       </div>
+    </div>
+  );
+}
 
-      <div className="glass-card verdict-card">
-        <div className="verdict-header">
-          {getVerdictIcon()}
-          Verdict du Système :
-          <span className={`badge ${getVerdictBadgeClass()}`}>{results.verdict}</span>
-        </div>
+// ── Schéma Classe D ───────────────────────────────────────────
+function SchematicD({ vcc, rl }: { vcc: number; rl: number }) {
+  const [selected, setSelected] = useState<string | null>(null);
 
-        {results.reasons.length > 0 && (
-          <ul className="reason-list">
-            {results.reasons.map((reason, idx) => (
-              <li key={idx} className="reason-item">
-                <AlertTriangle size={16} className="reason-icon" color="#ff9d00" />
-                {reason}
-              </li>
-            ))}
-          </ul>
-        )}
+  const blocks = [
+    { id: 'IN', label: 'IN', sub: 'Audio', highlight: false },
+    { id: 'LC', label: 'L/C', sub: 'Filtre E.', highlight: false },
+    { id: 'IRS', label: 'IRS2092S', sub: 'Ctrl PWM', highlight: true },
+    { id: 'HB', label: 'H-Bridge', sub: 'MOSFETs', highlight: false },
+    { id: 'FILT', label: 'LC Filter', sub: 'Passe-bas', highlight: false },
+    { id: 'HP', label: 'HP', sub: `${rl} Ω`, highlight: false },
+  ];
 
-        <div className="form-group" style={{ marginTop: '1rem', borderTop: '1px solid var(--border-glass)', paddingTop: '1.5rem' }}>
-          <label>Besoin Dissipateur Thermique</label>
-          <div style={{ fontSize: '1.2rem', fontWeight: 600 }}>
-            {results.heatsinkResistanceRequired > 0
-              ? `${results.heatsinkResistanceRequired.toFixed(2)} °C/W`
-              : results.dissipatedPower < 2
-                ? 'Aucun requis (refroidissement passif PCB)'
-                : 'Refroidissement impossible'}
-          </div>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            {results.heatsinkResistanceRequired > 0 &&
-              `Une valeur plus faible signifie un dissipateur plus volumineux. Cibler < ${results.heatsinkResistanceRequired.toFixed(2)}.`}
-          </p>
-        </div>
-      </div>
+  const info: Record<string, string> = {
+    IN: 'Entrée audio analogique\nSignal faible niveau (100 mV – 2 Vrms).',
+    LC: 'Filtre RC d\'entrée\n10 kΩ + 100 nF — Limite la bande passante.',
+    IRS: `IRS2092S — Contrôleur PWM\nGénère les signaux PWM à 400 kHz.\nProtection DC, overcurrent, dead-time intégrés.`,
+    HB: `Pont en H — 4 MOSFETs N-Ch\nVbus = ${vcc} V. Commutation à 400 kHz.`,
+    FILT: 'Filtre LC de sortie\nFiltre la porteuse PWM (fc ≈ 22 kHz).',
+    HP: `Haut-parleur : ${rl} Ω`,
+  };
 
-      <div className="glass-card" style={{ marginTop: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Comparatif : Classe AB vs Classe D</h3>
-          {results.comparison.bestClass && (
-            <div style={{
-              padding: '0.5rem 1rem',
-              background: 'rgba(0, 255, 128, 0.1)',
-              borderRadius: '2rem',
-              border: '1px solid var(--accent-green)',
-              fontSize: '0.9rem',
-              fontWeight: 600,
-              color: 'var(--accent-green)',
-            }}>
-              Architecture recommandée automatiquement : {results.comparison.bestClass}
+  return (
+    <div>
+      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Schéma de principe (Classe D) :</p>
+      <div style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '0.75rem', padding: '1.25rem 1rem', border: '1px solid var(--border-glass)', overflowX: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', minWidth: '500px' }}>
+          {blocks.map((b, i) => (
+            <div key={b.id} style={{ display: 'flex', alignItems: 'center' }}>
+              <div onClick={() => setSelected(selected === b.id ? null : b.id)} style={{
+                padding: '0.5rem 0.65rem', border: `1.5px solid ${selected === b.id ? '#00f2ff' : b.highlight ? '#0072ff' : 'rgba(255,255,255,0.15)'}`,
+                borderRadius: '0.5rem', textAlign: 'center', cursor: 'pointer', minWidth: '68px',
+                background: selected === b.id ? 'rgba(0,242,255,0.1)' : b.highlight ? 'rgba(0,114,255,0.15)' : 'rgba(255,255,255,0.03)',
+                transition: 'all 0.2s'
+              }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: b.highlight ? '#60a5fa' : 'white' }}>{b.label}</div>
+                <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>{b.sub}</div>
+              </div>
+              {i < blocks.length - 1 && <div style={{ color: 'var(--accent-cyan)', fontSize: '0.8rem', padding: '0 0.2rem' }}>→</div>}
             </div>
-          )}
+          ))}
         </div>
+        <div style={{ textAlign: 'center', fontSize: '0.72rem', color: '#555', marginTop: '0.75rem' }}>
+          Alimentation {vcc} V DC
+        </div>
+      </div>
+      <div style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(0,0,0,0.3)', borderRadius: '0.5rem', border: '1px solid var(--border-glass)', fontSize: '0.82rem', minHeight: '55px', whiteSpace: 'pre-line' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Composant sélectionné</span>
+        <p style={{ marginTop: '0.3rem', color: selected ? 'white' : 'var(--text-muted)' }}>
+          {selected ? info[selected] : 'Aucun composant sélectionné. Cliquez sur un bloc.'}
+        </p>
+      </div>
+    </div>
+  );
+}
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
+// ── Tableau comparatif ────────────────────────────────────────
+function ComparisonTable({ params }: { params: UserParams }) {
+  const ab = calculateAmplifier({ ...params, ampClass: 'Class AB' });
+  const d = calculateAmplifier({ ...params, ampClass: 'Class D' });
+  const recommended = d.efficiency > ab.efficiency ? 'Class D' : 'Class AB';
+
+  return (
+    <div className="glass-card" style={{ marginTop: '1.5rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+        <h3 style={{ fontWeight: 700 }}>Comparatif : Classe AB vs Classe D</h3>
+        <div style={{ padding: '0.35rem 0.9rem', background: 'rgba(0,255,128,0.1)', border: '1px solid rgba(0,255,128,0.2)', borderRadius: '2rem', fontSize: '0.78rem', color: '#00ff80', fontWeight: 700 }}>
+          Architecture recommandée : {recommended}
+        </div>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-glass)' }}>
-              <th style={{ padding: '1rem 0', color: 'var(--text-muted)', textAlign: 'left' }}>Classe</th>
-              <th style={{ padding: '1rem 0', color: 'var(--text-muted)' }}>Rendement</th>
-              <th style={{ padding: '1rem 0', color: 'var(--text-muted)' }}>Dissipation</th>
-              <th style={{ padding: '1rem 0', color: 'var(--text-muted)' }}>Complexité</th>
-              <th style={{ padding: '1rem 0', color: 'var(--text-muted)' }}>Coût</th>
-              <th style={{ padding: '1rem 0', color: 'var(--text-muted)' }}>Verdict</th>
+              {['Classe', 'Rendement', 'Dissipation', 'Complexité', 'Coût', 'Verdict'].map(h => (
+                <th key={h} style={{ textAlign: h === 'Classe' ? 'left' : 'center', padding: '0.6rem 0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>{h}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {results.comparison.points.map((p, i) => (
-              <tr key={i} style={{
-                borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                background: p.ampClass === results.comparison.bestClass ? 'rgba(0, 255, 128, 0.05)' : 'transparent',
-              }}>
-                <td style={{ padding: '1rem 0', textAlign: 'left', fontWeight: 600 }}>
-                  {p.ampClass}
-                  {p.ampClass === results.comparison.bestClass && (
-                    <span className="badge badge-functional" style={{ marginLeft: '0.5rem', fontSize: '0.6rem' }}>Recommandé</span>
-                  )}
-                  {!p.isViable && (
-                    <span className="badge badge-failed" style={{ marginLeft: '0.5rem', fontSize: '0.6rem' }}>Non Viable</span>
-                  )}
-                </td>
-                <td style={{ padding: '1rem 0' }}>{(p.efficiency * 100).toFixed(0)}%</td>
-                <td style={{ padding: '1rem 0', color: !p.isViable ? 'var(--accent-red)' : 'inherit' }}>
-                  {p.dissipation.toFixed(0)}W
-                </td>
-                <td style={{ padding: '1rem 0' }}>{p.complexity}</td>
-                <td style={{ padding: '1rem 0' }}>{p.cost}</td>
-                <td style={{ padding: '1rem 0' }}>
-                  {p.isViable
-                    ? <span style={{ color: '#00ff80' }}>✅ Viable</span>
-                    : <span style={{ color: '#ff4b2b' }}>❌ Non Viable</span>}
-                </td>
-              </tr>
-            ))}
+            {(['Class AB', 'Class D'] as const).map((cls) => {
+              const res = cls === 'Class AB' ? ab : d;
+              const isRec = cls === recommended;
+              return (
+                <tr key={cls} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '0.75rem', fontWeight: 700 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {cls}
+                      {isRec && <span style={{ fontSize: '0.6rem', padding: '0.1rem 0.45rem', background: 'rgba(0,255,128,0.15)', color: '#00ff80', borderRadius: '1rem', fontWeight: 800 }}>RECOMMANDÉ</span>}
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--accent-cyan)' }}>{res.efficiency.toFixed(0)}%</td>
+                  <td style={{ textAlign: 'center', padding: '0.75rem' }}>{res.pdTotal.toFixed(0)} W</td>
+                  <td style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)' }}>{cls === 'Class AB' ? 'Basse' : 'Haute'}</td>
+                  <td style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)' }}>Moyen</td>
+                  <td style={{ textAlign: 'center', padding: '0.75rem' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: res.recommendation.verdict === 'Functional' ? '#00ff80' : res.recommendation.verdict === 'Risk' ? 'var(--accent-orange)' : 'var(--accent-red)' }}>
+                      {res.recommendation.verdict === 'Functional' ? '✅ Viable' : res.recommendation.verdict === 'Risk' ? '⚠️ Risque' : '❌ Échec'}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
 
-      {isExpert && (
-        <div className="glass-card animate-fade" style={{ marginTop: '2rem', border: isPremium ? '1px solid rgba(0, 242, 255, 0.2)' : '1px solid rgba(0, 163, 255, 0.4)', background: isPremium ? 'var(--card-glass)' : 'linear-gradient(135deg, rgba(0, 20, 40, 0.8), rgba(0, 10, 20, 0.9))' }}>
-          {isPremium ? (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1.5rem' }}>
-                <Gauge size={22} color="var(--accent-cyan)" />
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Analyse Avancée (Mode Expert)</h3>
-              </div>
+// ── Composant principal ───────────────────────────────────────
+export default function ResultsDashboard({ results, params, isExpert, onSave }: Props) {
+  const { recommendation: rec } = results;
+  const vOutRms = parseFloat((results.vPeak / Math.sqrt(2)).toFixed(1));
+  const iRms = parseFloat((results.iPeak / Math.sqrt(2)).toFixed(2));
+  const thd = params.ampClass === 'Class AB' ? '0.1%' : '0.5%';
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '0.8rem' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>Qualité Signal</div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>THD ≈ {results.thd.toFixed(1)}%</div>
-                  <div style={{ fontSize: '0.75rem', color: results.thd > 0.3 ? 'var(--accent-orange)' : 'var(--accent-green)', marginTop: '0.3rem' }}>
-                    {results.thd > 0.3 ? 'Distorsion audible possible' : 'Haute Fidélité'}
-                  </div>
-                </div>
+  const heatsinkNote = params.ampClass === 'Class AB'
+    ? `Dissipateur ≥ ${results.heatsinkArea.toFixed(0)} cm²`
+    : 'Via plan de cuivre PCB';
 
-                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '0.8rem' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>Réserve Tension</div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>Headroom: {headroom.toFixed(2)}V</div>
-                  {headroom < 2 && (
-                    <div style={{ fontSize: '0.75rem', color: 'var(--accent-red)', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <AlertTriangle size={12} /> Risque de Clipping
-                    </div>
-                  )}
-                </div>
+  const mainIC = params.ampClass === 'Class AB' ? 'LM3886 / TDA7294' : 'IRS2092S';
+  const minCurrent = (results.iPeak * 1.2).toFixed(1);
+  const vLabel = params.supplyType === 'Symmetrical' ? `±${params.supplyVoltage} V` : `${params.supplyVoltage} V`;
 
-                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '0.8rem' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>Stress Thermique</div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>Tj: {tj.toFixed(0)}°C</div>
-                  <div style={{ fontSize: '0.75rem', color: tj > 80 ? 'var(--accent-red)' : 'var(--accent-green)', marginTop: '0.3rem' }}>
-                    {tj > 80 ? 'Surchauffe → Réduire Vcc' : 'Fonctionnement stable'}
-                  </div>
-                </div>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '0.8rem' }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>Marges de Sécurité</div>
-                  <div style={{ fontSize: '0.85rem' }}>
-                    Courant: <span style={{ color: 'var(--accent-cyan)' }}>75% (OK)</span><br />
-                    Thermique: <span style={{ color: 'var(--accent-cyan)' }}>60% (OK)</span>
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-              <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(0, 163, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
-                <Lock size={30} color="var(--accent-blue)" />
-              </div>
-              <h3 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.8rem' }}>Passez en version Pro pour accéder :</h3>
-              <ul style={{ color: 'var(--text-muted)', textAlign: 'left', display: 'inline-block', margin: '0 auto 2rem', lineHeight: '1.8' }}>
-                <li>• Au mode expert (THD, Headroom, Tj)</li>
-                <li>• Au rapport PDF complet et professionnel</li>
-                <li>• Aux designs et schémas détaillés</li>
-              </ul>
-              <br />
-              <button
-                className="download-btn"
-                onClick={() => alert('Paiement bientôt disponible')}
-                style={{ margin: '0 auto', background: 'linear-gradient(to right, var(--accent-blue), #007bff)' }}
-              >
-                Débloquer la Version Pro
-              </button>
+      {/* ── Métriques ── */}
+      <div className="results-grid">
+        {[
+          { icon: <Zap size={14} />, label: 'TENSION SORTIE', value: vOutRms, unit: 'Vrms', sub: `Crête: ${results.vPeak}V | THD: ${thd}`, color: 'var(--accent-cyan)' },
+          { icon: <Zap size={14} />, label: 'COURANT', value: iRms, unit: 'Arms', sub: `Crête: ${results.iPeak} A`, color: 'var(--accent-blue)' },
+          { icon: <Thermometer size={14} />, label: 'DISSIPATION', value: results.pdTotal, unit: 'W', sub: `Efficacité: ${results.efficiency}% | Tj: ${Math.round(results.pdPerDevice * (1 / results.rthRequired) + params.ambientTemp)}°C`, color: results.pdTotal > 30 ? 'var(--accent-red)' : 'var(--accent-orange)' },
+          { icon: <ShieldCheck size={14} />, label: 'P. MAX THÉORIQUE', value: results.realPower, unit: 'W', sub: 'Limite Alim', color: 'var(--accent-green)' },
+        ].map((m, i) => (
+          <div key={i} className="glass-card metric-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ color: m.color }}>{m.icon}</span>
+              <span className="metric-label">{m.label}</span>
             </div>
-          )}
+            <div>
+              <span className="metric-value" style={{ color: m.color }}>{m.value}</span>
+              <span className="metric-unit">{m.unit}</span>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{m.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Verdict ── */}
+      <div className="glass-card verdict-card">
+        <div className="verdict-header">
+          {rec.verdict === 'Functional' ? <CheckCircle size={22} color="#00ff80" /> : rec.verdict === 'Risk' ? <AlertTriangle size={22} color="var(--accent-orange)" /> : <XCircle size={22} color="var(--accent-red)" />}
+          <span>Verdict du Système :</span>
+          <span className={`badge badge-${rec.verdict === 'Functional' ? 'functional' : rec.verdict === 'Risk' ? 'risk' : 'failed'}`}>{rec.verdict}</span>
         </div>
-      )}
+        <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '0.75rem', padding: '1rem' }}>
+          <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>BESOIN DISSIPATEUR THERMIQUE</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>{results.rthRequired.toFixed(2)} °C/W</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Une valeur plus faible = dissipateur plus volumineux. Cibler &lt; {results.rthRequired.toFixed(2)}.</div>
+        </div>
+        {rec.warnings.length > 0 && (
+          <ul className="reason-list">
+            {rec.warnings.map((w, i) => (
+              <li key={i} className="reason-item"><AlertTriangle size={14} color="var(--accent-orange)" className="reason-icon" /><span>{w}</span></li>
+            ))}
+          </ul>
+        )}
+        {rec.suggestions.length > 0 && (
+          <ul className="reason-list">
+            {rec.suggestions.map((s, i) => (
+              <li key={i} className="reason-item"><Info size={14} color="var(--accent-cyan)" className="reason-icon" /><span style={{ color: 'var(--accent-cyan)' }}>{s}</span></li>
+            ))}
+          </ul>
+        )}
+      </div>
 
-      <div className="glass-card" style={{ marginTop: '2rem', border: '1px solid var(--accent-cyan)', position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1.5rem' }}>
-          <Zap size={24} color="var(--accent-cyan)" />
-          <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>
-            Solution Technique Détaillée : {architectureChoisie}
-          </h3>
+      {/* ── Comparatif ── */}
+      <ComparisonTable params={params} />
+
+      {/* ── Solution Technique ── */}
+      <div className="glass-card" style={{ borderColor: 'rgba(0,242,255,0.2)' }}>
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-cyan)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Zap size={18} /> Solution Technique Détaillée : {params.ampClass}
+        </h3>
+
+        {/* Infos clés */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+          {[
+            { label: 'Composant principal', value: mainIC, highlight: true },
+            { label: 'Refroidissement', value: heatsinkNote, highlight: false },
+            { label: 'Alimentation recommandée', value: vLabel, highlight: true },
+            { label: 'Courant Min Alim', value: `${minCurrent} A`, highlight: false },
+          ].map((item, i) => (
+            <div key={i} style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '0.75rem', padding: '0.75rem 1rem' }}>
+              <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{item.label}</div>
+              <div style={{ fontWeight: 700, color: item.highlight ? 'var(--accent-cyan)' : 'white', fontSize: '0.92rem' }}>{item.value}</div>
+            </div>
+          ))}
         </div>
 
-        <div className="main-grid" style={{ gridTemplateColumns: '1.2fr 0.8fr', gap: '2rem' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.2rem' }}>
-              <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '0.8rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Composant principal</span>
-                <span style={{ fontSize: '1.1rem', fontWeight: 700 }}>{mainComponent}</span>
+        {/* Schéma + BOM */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: '1.5rem', alignItems: 'start' }}>
+          <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '0.75rem', padding: '1rem', border: '1px solid var(--border-glass)' }}>
+            {params.ampClass === 'Class AB'
+              ? <SchematicAB vcc={results.vcc} rl={params.loadImpedance} />
+              : <SchematicD vcc={results.vcc} rl={params.loadImpedance} />
+            }
+            {rec.warnings.length > 0 && (
+              <div style={{ marginTop: '1rem' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--accent-orange)', marginBottom: '0.4rem' }}>Avertissements conception</div>
+                <ul style={{ listStyle: 'disc', paddingLeft: '1.2rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                  {rec.warnings.map((w, i) => <li key={i} style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{w}</li>)}
+                </ul>
               </div>
-              <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '0.8rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Refroidissement</span>
-                <span style={{ fontSize: '1rem', fontWeight: 600 }}>{results.recommendation.heatsinkType}</span>
-              </div>
-              <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '0.8rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Alimentation recommandée</span>
-                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>
-                  {architectureChoisie === 'Classe AB' ? results.powerSupply.voltageSymmetrical : results.powerSupply.voltageSimple}
-                </span>
-              </div>
-              <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '0.8rem' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Courant Min Alim</span>
-                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-green)' }}>{results.powerSupply.minCurrent}</span>
-              </div>
-            </div>
-
-            <div style={{ padding: '1.5rem', background: 'rgba(0, 0, 0, 0.4)', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '1.5rem' }}>Schéma de principe ({architectureChoisie}) :</span>
-              <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: 'monospace' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', zIndex: 2, fontSize: '0.85rem' }}>
-                  <div style={{ border: '1px solid var(--border-glass)', padding: '0.3rem 0.6rem', borderRadius: '4px' }}>[IN]</div>
-                  <div style={{ color: 'var(--accent-cyan)' }}>--{architectureChoisie === 'Classe D' ? 'L/C' : 'C'}--&gt;</div>
-                  <div style={{ border: '2px solid var(--accent-cyan)', padding: '0.4rem 0.8rem', borderRadius: '4px', background: 'rgba(0, 242, 255, 0.05)', fontWeight: 700 }}>
-                    [{mainComponent}]
-                  </div>
-                  <div style={{ color: 'var(--accent-cyan)' }}>--{architectureChoisie === 'Classe D' ? 'Filter' : 'Rout'}--&gt;</div>
-                  <div style={{ border: '1px solid var(--accent-green)', padding: '0.3rem 0.6rem', borderRadius: '4px' }}>[HP]</div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '-2px' }}>
-                  <div style={{ width: '2px', height: '25px', background: 'var(--accent-cyan)' }}></div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '0.4rem 0.8rem' }}>
-                    Alimentation {architectureChoisie === 'Classe AB' ? 'Symétrique' : 'Simple'}
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
-          <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1.5rem', borderRadius: '1rem' }}>
-            <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.2rem', color: 'var(--text-muted)' }}>BOM : {architectureChoisie}</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              {results.bom.map((item, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.5rem' }}>
-                  <div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{item.name}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.description}</div>
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--accent-cyan)' }}>x{item.quantity}</div>
+          {/* BOM */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+            <h4 style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--accent-cyan)', marginBottom: '0.25rem' }}>
+              BOM : {params.ampClass}
+            </h4>
+            {results.stages.flatMap(s => s.components).slice(0, 8).map((c, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', fontSize: '0.78rem', paddingBottom: '0.4rem', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <div>
+                  <div style={{ fontWeight: 600, color: 'white', fontSize: '0.76rem' }}>{c.label}</div>
+                  {c.note && <div style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>{c.note}</div>}
+                </div>
+                <span style={{ fontWeight: 700, color: 'var(--accent-cyan)', marginLeft: '0.4rem', whiteSpace: 'nowrap', fontSize: '0.76rem' }}>{c.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Paramètres globaux + Observations */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1.5rem' }}>
+          <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '0.75rem', padding: '1rem' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.75rem' }}>Paramètres Techniques Globaux</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              {[
+                { label: 'Swing de tension réel', value: `${results.vPeak.toFixed(2)} Vpk` },
+                { label: 'Courant crête HP', value: `${results.iPeak.toFixed(2)} Apk` },
+                { label: 'Architecture choisie', value: params.ampClass.replace('Class ', 'Classe '), color: 'var(--accent-cyan)' },
+                { label: 'Dissipateur requis', value: heatsinkNote },
+              ].map((item, i) => (
+                <div key={i}>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{item.label}</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.88rem', color: (item as any).color || 'white', marginTop: '0.1rem' }}>{item.value}</div>
                 </div>
               ))}
             </div>
           </div>
+          <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '0.75rem', padding: '1rem' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0.5rem' }}>Observations et Analyse</div>
+            <p style={{ fontSize: '0.78rem', color: 'var(--accent-cyan)', fontWeight: 600, marginBottom: '0.35rem' }}>Pourquoi ce design ?</p>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+              {params.ampClass === 'Class D'
+                ? `Le module IRS2092S est choisi pour son excellent rendement (${results.efficiency}%) et sa gestion thermique optimale à ${params.targetPower} W.`
+                : `Le LM3886/TDA7294 offre une distorsion minimale (THD < 0.1%) et une intégration facile pour ${params.targetPower} W sur ${params.loadImpedance} Ω.`}
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="main-grid" style={{ marginTop: '2rem', gridTemplateColumns: '1fr 1fr' }}>
+      {/* ── Mode Expert ── */}
+      {isExpert && (
         <div className="glass-card">
-          <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem', fontWeight: 700 }}>Paramètres Techniques Globaux</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-            <div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Swing de tension réel</span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>{results.vPeak.toFixed(2)} Vpk</span>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Courant crête HP</span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>{results.iPeak.toFixed(2)} Apk</span>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Architecture choisie</span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--accent-cyan)' }}>{architectureChoisie}</span>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block' }}>Dissipateur requis</span>
-              <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>{results.recommendation.heatsinkType}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="glass-card">
-          <h3 style={{ marginBottom: '1.2rem', fontSize: '1.1rem', fontWeight: 700 }}>Observations et Analyse</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-            {results.reasons.map((r, i) => (
-              <div key={i} style={{ fontSize: '0.9rem', display: 'flex', gap: '0.6rem', color: 'var(--text-muted)' }}>
-                <span style={{ color: 'var(--accent-cyan)' }}>•</span> <span>{r}</span>
+          <h3 style={{ fontWeight: 700, marginBottom: '1.25rem', fontSize: '1rem' }}>Mode Expert — Détail des Étages</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {results.stages.map((stage, si) => (
+              <div key={si}>
+                <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--accent-cyan)', marginBottom: '0.75rem' }}>{stage.stageName}</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  {stage.components.map((c, ci) => (
+                    <div key={ci} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.55rem 0.75rem', background: 'rgba(0,0,0,0.2)', borderRadius: '0.5rem', fontSize: '0.82rem', gap: '1rem' }}>
+                      <div>
+                        <span style={{ fontWeight: 600 }}>{c.label}</span>
+                        {c.note && <span style={{ color: 'var(--text-muted)', fontSize: '0.73rem', marginLeft: '0.5rem' }}>— {c.note}</span>}
+                      </div>
+                      <span style={{ color: 'var(--accent-cyan)', fontWeight: 700, whiteSpace: 'nowrap' }}>{c.value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
-            <div style={{ marginTop: '0.5rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-cyan)', display: 'block', marginBottom: '0.4rem' }}>
-                Pourquoi ce design ?
-              </span>
-              <p style={{ fontSize: '0.85rem', lineHeight: '1.5', fontStyle: 'italic' }}>
-                {results.recommendation.whyRecommended}
-              </p>
-            </div>
           </div>
         </div>
-      </div>
+      )}
 
-
-
-      <div id="circuit-schematic-pdf">
-        {circuit && (
-          <CircuitSchematic
-            circuit={circuit}
-            ampClass={params.ampClass}
-          />
-        )}
-      </div>
-
-
-
-
-
-
-      <div style={{ marginTop: '2rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-        <button
-          className="download-btn"
-          onClick={generatePDF}
-          style={{ position: 'relative' }}
-        >
+      {/* ── Boutons ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <button className="download-btn" onClick={() => generatePDFReport(results, params)} style={{ margin: 0 }}>
           <Download size={18} /> Télécharger le Rapport Complet (PDF)
-          {!isPremium && <Lock size={12} style={{ position: 'absolute', top: '5px', right: '5px' }} />}
         </button>
-
-        <button
-          className="download-btn"
-          onClick={onSave}
-          style={{ background: 'rgba(0, 255, 128, 0.1)', border: '1px solid var(--accent-green)', color: 'var(--accent-green)' }}
+        <button onClick={onSave} style={{ background: 'rgba(0,255,128,0.1)', border: '1px solid rgba(0,255,128,0.2)', color: '#00ff80', padding: '1rem 2rem', borderRadius: '1rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', fontSize: '0.95rem', transition: 'all 0.2s' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,255,128,0.18)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,255,128,0.1)')}
         >
           <Save size={18} /> Sauvegarder l'analyse
         </button>
       </div>
     </div>
   );
-};
-
-export default ResultsDashboard;
+}
