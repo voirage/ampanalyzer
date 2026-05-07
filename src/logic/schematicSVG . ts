@@ -1,0 +1,498 @@
+// ============================================================
+//  Générateur de schémas électroniques SVG
+//  Symboles normalisés IEC/IEEE
+// ============================================================
+
+export function buildClassABSchematic(vcc: number, rl: number): string {
+  const rfb2 = 22000;
+  const rfb1 = 1000;
+  const gain = (1 + rfb2 / rfb1).toFixed(0);
+
+  return `<svg width="700" height="360" viewBox="0 0 700 360"
+    xmlns="http://www.w3.org/2000/svg"
+    font-family="Arial,Helvetica,sans-serif"
+    font-size="8">
+
+    <!-- Fond blanc -->
+    <rect width="700" height="360" fill="white"/>
+
+    <!-- Titre -->
+    <text x="350" y="16" text-anchor="middle" font-size="11"
+      font-weight="bold" fill="#0a0a2e">
+      Schéma Classe AB — LM3886 / TDA7294 — ±${vcc}V / ${rl}Ω — Gain ${gain}×
+    </text>
+    <line x1="10" y1="21" x2="690" y2="21" stroke="#ccc" stroke-width="0.6"/>
+
+    <!-- ══ RAILS DE PUISSANCE ══ -->
+    <!-- +VCC -->
+    <line x1="10" y1="42" x2="680" y2="42"
+      stroke="#cc2200" stroke-width="1" stroke-dasharray="6,3"/>
+    <text x="14" y="39" fill="#cc2200" font-weight="bold">+VCC (+${vcc}V)</text>
+    <!-- -VCC -->
+    <line x1="10" y1="318" x2="680" y2="318"
+      stroke="#0033cc" stroke-width="1" stroke-dasharray="6,3"/>
+    <text x="14" y="327" fill="#0033cc" font-weight="bold">-VCC (-${vcc}V)</text>
+
+    <!-- ══ ENTRÉE AUDIO ══ -->
+    <text x="12" y="183" fill="#333">Audio IN</text>
+    <line x1="55" y1="178" x2="75" y2="178" stroke="#1a1a2e" stroke-width="1.5"/>
+
+    <!-- ── C1 Condensateur de couplage ── -->
+    <!-- Plaque gauche -->
+    <line x1="75" y1="169" x2="75" y2="187" stroke="#1a1a2e" stroke-width="3"/>
+    <!-- Plaque droite -->
+    <line x1="81" y1="169" x2="81" y2="187" stroke="#1a1a2e" stroke-width="3"/>
+    <!-- Fil sortie -->
+    <line x1="81" y1="178" x2="105" y2="178" stroke="#1a1a2e" stroke-width="1.5"/>
+    <!-- Labels -->
+    <text x="78" y="163" text-anchor="middle" fill="#0033cc" font-weight="bold">C1</text>
+    <text x="78" y="200" text-anchor="middle" fill="#444">1 µF</text>
+
+    <!-- ── Rin Résistance d'entrée (symbole rectangle européen) ── -->
+    <rect x="105" y="172" width="26" height="12" rx="1"
+      fill="white" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="131" y1="178" x2="150" y2="178" stroke="#1a1a2e" stroke-width="1.5"/>
+    <text x="118" y="166" text-anchor="middle" fill="#0033cc" font-weight="bold">Rin</text>
+    <text x="118" y="196" text-anchor="middle" fill="#444">22 kΩ</text>
+
+    <!-- Nœud jonction entrée + -->
+    <circle cx="150" cy="178" r="2.5" fill="#1a1a2e"/>
+    <line x1="150" y1="178" x2="150" y2="158" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="150" y1="158" x2="168" y2="158" stroke="#1a1a2e" stroke-width="1.5"/>
+
+    <!-- ══ TRIANGLE AMPLIFICATEUR (LM3886) ══ -->
+    <!-- Triangle: sommet droit à (240,178) -->
+    <polygon points="168,128 168,228 240,178"
+      fill="#eef3ff" stroke="#1a1a2e" stroke-width="2"/>
+
+    <!-- Entrée + (non-inverseuse, haute) -->
+    <text x="173" y="163" fill="#006600" font-weight="bold" font-size="10">+</text>
+    <!-- Entrée - (inverseuse, basse) -->
+    <text x="173" y="200" fill="#cc0000" font-weight="bold" font-size="10">−</text>
+
+    <!-- Fil entrée + depuis jonction -->
+    <!-- (déjà tracé ci-dessus jusqu'à x=168, y=158) -->
+
+    <!-- Fil entrée - depuis réseau de feedback -->
+    <line x1="135" y1="198" x2="168" y2="198" stroke="#1a1a2e" stroke-width="1.5"/>
+
+    <!-- Nom du CI dans le triangle -->
+    <text x="200" y="173" text-anchor="middle" fill="#1a1a2e"
+      font-weight="bold" font-size="9">LM3886</text>
+    <text x="200" y="184" text-anchor="middle" fill="#555" font-size="7.5">/ TDA7294</text>
+
+    <!-- Connexions alim au CI -->
+    <line x1="204" y1="42" x2="204" y2="128"
+      stroke="#cc2200" stroke-width="0.8" stroke-dasharray="3,2"/>
+    <line x1="204" y1="228" x2="204" y2="318"
+      stroke="#0033cc" stroke-width="0.8" stroke-dasharray="3,2"/>
+
+    <!-- Fil sortie du triangle -->
+    <line x1="240" y1="178" x2="295" y2="178" stroke="#1a1a2e" stroke-width="1.5"/>
+    <!-- Nœud sortie -->
+    <circle cx="295" cy="178" r="2.5" fill="#1a1a2e"/>
+
+    <!-- ══ RÉSEAU DE FEEDBACK ══ -->
+    <!-- Fil de sortie vers Rfb1 (monte) -->
+    <line x1="295" y1="178" x2="295" y2="100" stroke="#1a1a2e" stroke-width="1.5"/>
+    <!-- Rfb1 horizontal (feedback) -->
+    <line x1="210" y1="100" x2="228" y2="100" stroke="#1a1a2e" stroke-width="1.5"/>
+    <rect x="228" y="94" width="26" height="12" rx="1"
+      fill="white" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="254" y1="100" x2="295" y2="100" stroke="#1a1a2e" stroke-width="1.5"/>
+    <text x="241" y="88" text-anchor="middle" fill="#0033cc" font-weight="bold">Rfb1</text>
+    <text x="241" y="116" text-anchor="middle" fill="#444">1 kΩ</text>
+
+    <!-- Nœud au point d'entrée inverseuse -->
+    <circle cx="210" cy="100" r="2.5" fill="#1a1a2e"/>
+    <!-- Fil du nœud vers entrée - -->
+    <line x1="210" y1="100" x2="210" y2="198" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="135" y1="198" x2="210" y2="198" stroke="#1a1a2e" stroke-width="1.5"/>
+    <circle cx="135" cy="198" r="2.5" fill="#1a1a2e"/>
+
+    <!-- Rfb2 (de l'entrée - vers GND) -->
+    <line x1="135" y1="198" x2="135" y2="218" stroke="#1a1a2e" stroke-width="1.5"/>
+    <rect x="129" y="218" width="12" height="24" rx="1"
+      fill="white" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="135" y1="242" x2="135" y2="262" stroke="#1a1a2e" stroke-width="1.5"/>
+    <!-- Symbole GND -->
+    <line x1="124" y1="262" x2="146" y2="262" stroke="#1a1a2e" stroke-width="2.2"/>
+    <line x1="127" y1="267" x2="143" y2="267" stroke="#1a1a2e" stroke-width="1.6"/>
+    <line x1="130" y1="272" x2="140" y2="272" stroke="#1a1a2e" stroke-width="1"/>
+    <text x="149" y="228" fill="#0033cc" font-weight="bold">Rfb2</text>
+    <text x="149" y="238" fill="#444">22 kΩ</text>
+
+    <!-- ══ SORTIE ══ -->
+    <!-- Rs résistance série de sortie -->
+    <rect x="295" y="172" width="22" height="12" rx="1"
+      fill="white" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="317" y1="178" x2="345" y2="178" stroke="#1a1a2e" stroke-width="1.5"/>
+    <text x="306" y="165" text-anchor="middle" fill="#0033cc" font-weight="bold">Rs</text>
+    <text x="306" y="197" text-anchor="middle" fill="#444">0.22 Ω</text>
+
+    <!-- ══ RÉSEAU ZOBEL (R+C en parallèle) ══ -->
+    <circle cx="345" cy="178" r="2.5" fill="#1a1a2e"/>
+    <!-- Fil vers Zobel R -->
+    <line x1="345" y1="178" x2="345" y2="148" stroke="#1a1a2e" stroke-width="1"/>
+    <!-- Rz -->
+    <rect x="340" y="128" width="10" height="20" rx="1"
+      fill="white" stroke="#1a1a2e" stroke-width="1"/>
+    <line x1="345" y1="128" x2="345" y2="112" stroke="#1a1a2e" stroke-width="1"/>
+    <!-- Cz -->
+    <line x1="338" y1="112" x2="352" y2="112" stroke="#1a1a2e" stroke-width="2.2"/>
+    <line x1="338" y1="107" x2="352" y2="107" stroke="#1a1a2e" stroke-width="2.2"/>
+    <line x1="345" y1="107" x2="345" y2="92" stroke="#1a1a2e" stroke-width="1"/>
+    <!-- GND Zobel -->
+    <line x1="337" y1="92" x2="353" y2="92" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="339" y1="96" x2="351" y2="96" stroke="#1a1a2e" stroke-width="1.4"/>
+    <line x1="341" y1="100" x2="349" y2="100" stroke="#1a1a2e" stroke-width="0.9"/>
+    <text x="356" y="142" fill="#666" font-size="7">10 Ω</text>
+    <text x="356" y="112" fill="#666" font-size="7">100 nF</text>
+    <text x="356" y="96" fill="#555" font-size="7" font-weight="bold">Zobel</text>
+
+    <!-- ══ HAUT-PARLEUR ══ -->
+    <line x1="345" y1="178" x2="380" y2="178" stroke="#1a1a2e" stroke-width="1.5"/>
+    <!-- Corps rectangle -->
+    <rect x="380" y="164" width="18" height="28" rx="1"
+      fill="#ddeeff" stroke="#1a1a2e" stroke-width="1.5"/>
+    <!-- Cône trapézoïdal -->
+    <polygon points="398,164 398,192 430,206 430,150"
+      fill="#ddeeff" stroke="#1a1a2e" stroke-width="1.5"/>
+    <!-- Fil retour GND du HP -->
+    <line x1="414" y1="206" x2="414" y2="262" stroke="#1a1a2e" stroke-width="1.5"/>
+    <!-- GND du HP -->
+    <line x1="404" y1="262" x2="424" y2="262" stroke="#1a1a2e" stroke-width="2.2"/>
+    <line x1="407" y1="267" x2="421" y2="267" stroke="#1a1a2e" stroke-width="1.6"/>
+    <line x1="410" y1="272" x2="418" y2="272" stroke="#1a1a2e" stroke-width="1"/>
+    <text x="410" y="220" text-anchor="middle" fill="#0033cc"
+      font-weight="bold" font-size="9">HP</text>
+    <text x="410" y="232" text-anchor="middle" fill="#444">${rl} Ω</text>
+
+    <!-- ══ CONDENSATEURS DE DÉCOUPLAGE ══ -->
+    <!-- +VCC -->
+    <line x1="520" y1="42" x2="520" y2="62" stroke="#cc2200" stroke-width="1"/>
+    <line x1="512" y1="62" x2="528" y2="62" stroke="#1a1a2e" stroke-width="2.5"/>
+    <line x1="512" y1="68" x2="528" y2="68" stroke="#1a1a2e" stroke-width="2.5"/>
+    <line x1="520" y1="68" x2="520" y2="90" stroke="#1a1a2e" stroke-width="1"/>
+    <line x1="513" y1="90" x2="527" y2="90" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="515" y1="95" x2="525" y2="95" stroke="#1a1a2e" stroke-width="1.4"/>
+    <line x1="517" y1="100" x2="523" y2="100" stroke="#1a1a2e" stroke-width="0.9"/>
+    <text x="530" y="62" fill="#444" font-size="7.5">100 µF</text>
+    <text x="530" y="72" fill="#444" font-size="7.5">+ 100 nF</text>
+    <text x="530" y="86" fill="#555" font-size="7">Découplage +VCC</text>
+
+    <!-- -VCC -->
+    <line x1="560" y1="318" x2="560" y2="298" stroke="#0033cc" stroke-width="1"/>
+    <line x1="552" y1="298" x2="568" y2="298" stroke="#1a1a2e" stroke-width="2.5"/>
+    <line x1="552" y1="292" x2="568" y2="292" stroke="#1a1a2e" stroke-width="2.5"/>
+    <line x1="560" y1="292" x2="560" y2="270" stroke="#1a1a2e" stroke-width="1"/>
+    <line x1="553" y1="270" x2="567" y2="270" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="555" y1="265" x2="565" y2="265" stroke="#1a1a2e" stroke-width="1.4"/>
+    <line x1="557" y1="260" x2="563" y2="260" stroke="#1a1a2e" stroke-width="0.9"/>
+    <text x="570" y="298" fill="#444" font-size="7.5">100 µF</text>
+    <text x="570" y="308" fill="#444" font-size="7.5">+ 100 nF</text>
+    <text x="570" y="266" fill="#555" font-size="7">Découplage -VCC</text>
+
+    <!-- ══ LÉGENDE ══ -->
+    <rect x="455" y="130" width="170" height="110" rx="3"
+      fill="#f8f9ff" stroke="#bbb" stroke-width="0.8"/>
+    <text x="540" y="144" text-anchor="middle" font-size="8.5"
+      font-weight="bold" fill="#1a1a2e">Légende symboles</text>
+    <line x1="460" y1="148" x2="620" y2="148" stroke="#ddd" stroke-width="0.5"/>
+
+    <!-- Résistance -->
+    <line x1="463" y1="160" x2="470" y2="160" stroke="#1a1a2e" stroke-width="1.2"/>
+    <rect x="470" y="156" width="18" height="8" rx="1"
+      fill="white" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="488" y1="160" x2="495" y2="160" stroke="#1a1a2e" stroke-width="1.2"/>
+    <text x="498" y="163" fill="#333">Résistance (R)</text>
+
+    <!-- Condensateur -->
+    <line x1="463" y1="178" x2="474" y2="178" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="474" y1="173" x2="474" y2="183" stroke="#1a1a2e" stroke-width="2.5"/>
+    <line x1="479" y1="173" x2="479" y2="183" stroke="#1a1a2e" stroke-width="2.5"/>
+    <line x1="479" y1="178" x2="490" y2="178" stroke="#1a1a2e" stroke-width="1.2"/>
+    <text x="498" y="181" fill="#333">Condensateur (C)</text>
+
+    <!-- Amplificateur -->
+    <polygon points="463,192 463,206 475,199"
+      fill="#eef3ff" stroke="#1a1a2e" stroke-width="1.2"/>
+    <text x="498" y="202" fill="#333">Amplificateur (IC)</text>
+
+    <!-- HP -->
+    <rect x="463" y="211" width="8" height="12" rx="1"
+      fill="#ddeeff" stroke="#1a1a2e" stroke-width="1"/>
+    <polygon points="471,211 471,223 480,227 480,207"
+      fill="#ddeeff" stroke="#1a1a2e" stroke-width="1"/>
+    <text x="498" y="220" fill="#333">Haut-parleur (HP)</text>
+
+    <!-- GND -->
+    <line x1="463" y1="232" x2="475" y2="232" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="465" y1="236" x2="473" y2="236" stroke="#1a1a2e" stroke-width="1.4"/>
+    <line x1="467" y1="240" x2="471" y2="240" stroke="#1a1a2e" stroke-width="0.9"/>
+    <text x="498" y="236" fill="#333">Masse (GND)</text>
+  </svg>`;
+}
+
+export function buildClassDSchematic(vcc: number, rl: number, lUH: number, cUF: number): string {
+  return `<svg width="700" height="360" viewBox="0 0 700 360"
+    xmlns="http://www.w3.org/2000/svg"
+    font-family="Arial,Helvetica,sans-serif"
+    font-size="8">
+
+    <!-- Fond blanc -->
+    <rect width="700" height="360" fill="white"/>
+
+    <!-- Titre -->
+    <text x="350" y="16" text-anchor="middle" font-size="11"
+      font-weight="bold" fill="#0a0a2e">
+      Schéma Classe D — IRS2092S + Pont en H — ${vcc}V / ${rl}Ω
+    </text>
+    <line x1="10" y1="21" x2="690" y2="21" stroke="#ccc" stroke-width="0.6"/>
+
+    <!-- ══ RAILS ══ -->
+    <!-- Vbus -->
+    <line x1="10" y1="42" x2="680" y2="42"
+      stroke="#cc2200" stroke-width="1.2" stroke-dasharray="6,3"/>
+    <text x="14" y="39" fill="#cc2200" font-weight="bold">VBUS (+${vcc}V DC)</text>
+    <!-- GND -->
+    <line x1="10" y1="318" x2="680" y2="318"
+      stroke="#333" stroke-width="0.8" stroke-dasharray="5,3"/>
+    <text x="14" y="327" fill="#333" font-weight="bold">GND</text>
+
+    <!-- ══ ENTRÉE AUDIO ══ -->
+    <text x="12" y="183" fill="#333">Audio IN</text>
+    <line x1="55" y1="178" x2="75" y2="178" stroke="#1a1a2e" stroke-width="1.5"/>
+
+    <!-- ── Filtre RC d'entrée ── -->
+    <!-- Rin -->
+    <rect x="75" y="172" width="22" height="12" rx="1"
+      fill="white" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="97" y1="178" x2="115" y2="178" stroke="#1a1a2e" stroke-width="1.5"/>
+    <text x="86" y="165" text-anchor="middle" fill="#0033cc" font-weight="bold">Rin</text>
+    <text x="86" y="197" text-anchor="middle" fill="#444">10 kΩ</text>
+
+    <!-- Cin (vers GND) -->
+    <circle cx="115" cy="178" r="2.5" fill="#1a1a2e"/>
+    <line x1="115" y1="178" x2="115" y2="198" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="108" y1="198" x2="122" y2="198" stroke="#1a1a2e" stroke-width="2.5"/>
+    <line x1="108" y1="204" x2="122" y2="204" stroke="#1a1a2e" stroke-width="2.5"/>
+    <line x1="115" y1="204" x2="115" y2="220" stroke="#1a1a2e" stroke-width="1.5"/>
+    <!-- GND Cin -->
+    <line x1="107" y1="220" x2="123" y2="220" stroke="#1a1a2e" stroke-width="2.2"/>
+    <line x1="109" y1="225" x2="121" y2="225" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="111" y1="230" x2="119" y2="230" stroke="#1a1a2e" stroke-width="0.9"/>
+    <text x="125" y="198" fill="#0033cc" font-weight="bold">Cin</text>
+    <text x="125" y="208" fill="#444">100 nF</text>
+    <line x1="115" y1="178" x2="140" y2="178" stroke="#1a1a2e" stroke-width="1.5"/>
+
+    <!-- ══ IRS2092S (CI contrôleur PWM) ══ -->
+    <rect x="140" y="120" width="90" height="116" rx="4"
+      fill="#eef0ff" stroke="#1a1a2e" stroke-width="2"/>
+    <text x="185" y="138" text-anchor="middle" font-weight="bold"
+      font-size="9" fill="#1a1a2e">IRS2092S</text>
+    <text x="185" y="150" text-anchor="middle" font-size="7.5" fill="#555">Contrôleur PWM</text>
+    <text x="185" y="162" text-anchor="middle" font-size="7" fill="#777">400 kHz</text>
+    <!-- Broches -->
+    <!-- IN+ -->
+    <line x1="115" y1="178" x2="140" y2="178" stroke="#1a1a2e" stroke-width="1.5"/>
+    <text x="143" y="188" fill="#1a1a2e" font-size="7">IN</text>
+    <!-- HO (High-side output) -->
+    <line x1="230" y1="155" x2="258" y2="155" stroke="#1a1a2e" stroke-width="1.5"/>
+    <text x="222" y="152" fill="#1a1a2e" font-size="7">HO</text>
+    <!-- LO (Low-side output) -->
+    <line x1="230" y1="200" x2="258" y2="200" stroke="#1a1a2e" stroke-width="1.5"/>
+    <text x="222" y="197" fill="#1a1a2e" font-size="7">LO</text>
+    <!-- VCC alim CI -->
+    <line x1="185" y1="120" x2="185" y2="42" stroke="#cc2200" stroke-width="0.8" stroke-dasharray="3,2"/>
+    <!-- GND CI -->
+    <line x1="185" y1="236" x2="185" y2="256" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="177" y1="256" x2="193" y2="256" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="179" y1="260" x2="191" y2="260" stroke="#1a1a2e" stroke-width="1.4"/>
+    <line x1="181" y1="264" x2="189" y2="264" stroke="#1a1a2e" stroke-width="0.9"/>
+
+    <!-- ══ PONT EN H (4 MOSFETs) ══ -->
+    <!-- Cadre pont en H -->
+    <rect x="258" y="90" width="130" height="200" rx="4"
+      fill="#fff8ee" stroke="#cc6600" stroke-width="1.5" stroke-dasharray="5,2"/>
+    <text x="323" y="106" text-anchor="middle" font-size="8.5"
+      font-weight="bold" fill="#cc6600">Pont en H</text>
+
+    <!-- ── Q1 MOSFET haut gauche ── -->
+    <!-- Corps MOSFET (D-G-S) -->
+    <!-- Drain -->
+    <line x1="290" y1="42" x2="290" y2="108" stroke="#cc2200" stroke-width="1.2"/>
+    <line x1="284" y1="108" x2="290" y2="108" stroke="#1a1a2e" stroke-width="1.5"/>
+    <!-- Canal -->
+    <line x1="284" y1="108" x2="284" y2="132" stroke="#1a1a2e" stroke-width="3"/>
+    <!-- Source -->
+    <line x1="284" y1="132" x2="290" y2="132" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="290" y1="132" x2="290" y2="148" stroke="#1a1a2e" stroke-width="1.2"/>
+    <!-- Grille -->
+    <line x1="278" y1="120" x2="270" y2="120" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="278" y1="108" x2="278" y2="132" stroke="#1a1a2e" stroke-width="1.2"/>
+    <!-- Flèche drain MOSFET N -->
+    <polygon points="286,120 292,115 292,125" fill="#1a1a2e"/>
+    <text x="296" y="112" fill="#0033cc" font-weight="bold" font-size="7.5">Q1</text>
+    <text x="296" y="121" fill="#444" font-size="6.5">IRFZ44N</text>
+
+    <!-- Grille Q1 vers HO -->
+    <!-- Rg1 -->
+    <line x1="258" y1="155" x2="270" y2="155" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="270" y1="155" x2="270" y2="120" stroke="#1a1a2e" stroke-width="1.2"/>
+
+    <!-- ── Q2 MOSFET bas gauche ── -->
+    <line x1="290" y1="178" x2="290" y2="192" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="284" y1="192" x2="290" y2="192" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="284" y1="192" x2="284" y2="216" stroke="#1a1a2e" stroke-width="3"/>
+    <line x1="284" y1="216" x2="290" y2="216" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="290" y1="216" x2="290" y2="318" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="278" y1="204" x2="270" y2="204" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="278" y1="192" x2="278" y2="216" stroke="#1a1a2e" stroke-width="1.2"/>
+    <polygon points="286,204 292,199 292,209" fill="#1a1a2e"/>
+    <text x="296" y="197" fill="#0033cc" font-weight="bold" font-size="7.5">Q2</text>
+    <text x="296" y="206" fill="#444" font-size="6.5">IRFZ44N</text>
+
+    <!-- Grille Q2 vers LO -->
+    <line x1="258" y1="200" x2="270" y2="200" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="270" y1="200" x2="270" y2="204" stroke="#1a1a2e" stroke-width="1.2"/>
+
+    <!-- Nœud milieu gauche (sortie A) -->
+    <circle cx="290" cy="165" r="3" fill="#1a1a2e"/>
+    <line x1="290" y1="148" x2="290" y2="178" stroke="#1a1a2e" stroke-width="1.5"/>
+
+    <!-- ── Q3 MOSFET haut droit ── -->
+    <line x1="355" y1="42" x2="355" y2="108" stroke="#cc2200" stroke-width="1.2"/>
+    <line x1="349" y1="108" x2="355" y2="108" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="349" y1="108" x2="349" y2="132" stroke="#1a1a2e" stroke-width="3"/>
+    <line x1="349" y1="132" x2="355" y2="132" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="355" y1="132" x2="355" y2="148" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="343" y1="120" x2="335" y2="120" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="343" y1="108" x2="343" y2="132" stroke="#1a1a2e" stroke-width="1.2"/>
+    <polygon points="351,120 357,115 357,125" fill="#1a1a2e"/>
+    <text x="360" y="112" fill="#0033cc" font-weight="bold" font-size="7.5">Q3</text>
+    <text x="360" y="121" fill="#444" font-size="6.5">IRFZ44N</text>
+    <!-- Grille Q3 reliée à Q1 (même signal HO simplifié) -->
+    <line x1="335" y1="120" x2="335" y2="155" stroke="#1a1a2e" stroke-width="0.8" stroke-dasharray="3,2"/>
+
+    <!-- ── Q4 MOSFET bas droit ── -->
+    <line x1="355" y1="178" x2="355" y2="192" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="349" y1="192" x2="355" y2="192" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="349" y1="192" x2="349" y2="216" stroke="#1a1a2e" stroke-width="3"/>
+    <line x1="349" y1="216" x2="355" y2="216" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="355" y1="216" x2="355" y2="318" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="343" y1="204" x2="335" y2="204" stroke="#1a1a2e" stroke-width="1.2"/>
+    <line x1="343" y1="192" x2="343" y2="216" stroke="#1a1a2e" stroke-width="1.2"/>
+    <polygon points="351,204 357,199 357,209" fill="#1a1a2e"/>
+    <text x="360" y="197" fill="#0033cc" font-weight="bold" font-size="7.5">Q4</text>
+    <text x="360" y="206" fill="#444" font-size="6.5">IRFZ44N</text>
+    <!-- Grille Q4 reliée à Q2 -->
+    <line x1="335" y1="204" x2="335" y2="200" stroke="#1a1a2e" stroke-width="0.8" stroke-dasharray="3,2"/>
+
+    <!-- Nœud milieu droit (sortie B) -->
+    <circle cx="355" cy="165" r="3" fill="#1a1a2e"/>
+    <line x1="355" y1="148" x2="355" y2="178" stroke="#1a1a2e" stroke-width="1.5"/>
+
+    <!-- Rail VBUS dans le pont -->
+    <line x1="290" y1="42" x2="355" y2="42" stroke="#cc2200" stroke-width="1.5"/>
+    <!-- GND dans le pont -->
+    <line x1="290" y1="318" x2="355" y2="318" stroke="#333" stroke-width="1.2"/>
+
+    <!-- ══ FILTRE LC DE SORTIE ══ -->
+    <!-- Fil sortie A du pont -->
+    <line x1="290" y1="165" x2="388" y2="165" stroke="#1a1a2e" stroke-width="2"/>
+
+    <!-- Inductance L (bobine — symboles arcs) -->
+    <path d="M 388,165 Q 394,152 400,165 Q 406,178 412,165 Q 418,152 424,165 Q 430,178 436,165"
+      fill="none" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="436" y1="165" x2="456" y2="165" stroke="#1a1a2e" stroke-width="2"/>
+    <text x="412" y="155" text-anchor="middle" fill="#0033cc" font-weight="bold">L</text>
+    <text x="412" y="183" text-anchor="middle" fill="#444">${lUH} µH</text>
+
+    <!-- Condensateur C (vers GND) -->
+    <circle cx="456" cy="165" r="2.5" fill="#1a1a2e"/>
+    <line x1="456" y1="165" x2="456" y2="188" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="447" y1="188" x2="465" y2="188" stroke="#1a1a2e" stroke-width="2.8"/>
+    <line x1="447" y1="194" x2="465" y2="194" stroke="#1a1a2e" stroke-width="2.8"/>
+    <line x1="456" y1="194" x2="456" y2="214" stroke="#1a1a2e" stroke-width="1.5"/>
+    <!-- GND du condensateur -->
+    <line x1="447" y1="214" x2="465" y2="214" stroke="#1a1a2e" stroke-width="2.2"/>
+    <line x1="449" y1="219" x2="463" y2="219" stroke="#1a1a2e" stroke-width="1.6"/>
+    <line x1="451" y1="224" x2="461" y2="224" stroke="#1a1a2e" stroke-width="1"/>
+    <text x="468" y="188" fill="#0033cc" font-weight="bold">C</text>
+    <text x="468" y="198" fill="#444">${cUF} µF</text>
+
+    <!-- Fil de sortie filtrée -->
+    <line x1="456" y1="165" x2="500" y2="165" stroke="#1a1a2e" stroke-width="2"/>
+
+    <!-- ══ HAUT-PARLEUR ══ -->
+    <rect x="500" y="151" width="18" height="28" rx="1"
+      fill="#ddeeff" stroke="#1a1a2e" stroke-width="1.5"/>
+    <polygon points="518,151 518,179 548,193 548,137"
+      fill="#ddeeff" stroke="#1a1a2e" stroke-width="1.5"/>
+    <text x="530" y="208" text-anchor="middle" fill="#0033cc"
+      font-weight="bold" font-size="9">HP</text>
+    <text x="530" y="220" text-anchor="middle" fill="#444">${rl} Ω</text>
+    <!-- Retour GND HP -->
+    <line x1="533" y1="193" x2="533" y2="318" stroke="#1a1a2e" stroke-width="1.5"/>
+
+    <!-- Fil retour sortie B (vers GND via Q2/Q4) -->
+    <line x1="355" y1="165" x2="388" y2="165" stroke="#1a1a2e" stroke-width="1"/>
+    <line x1="388" y1="165" x2="388" y2="240" stroke="#1a1a2e" stroke-width="1"/>
+    <line x1="388" y1="240" x2="533" y2="240" stroke="#1a1a2e" stroke-width="1"/>
+    <line x1="533" y1="240" x2="533" y2="193" stroke="#1a1a2e" stroke-width="1"/>
+
+    <!-- ══ CONDENSATEUR DE BUS ══ -->
+    <line x1="600" y1="42" x2="600" y2="68" stroke="#cc2200" stroke-width="1"/>
+    <line x1="592" y1="68" x2="608" y2="68" stroke="#1a1a2e" stroke-width="2.8"/>
+    <line x1="592" y1="74" x2="608" y2="74" stroke="#1a1a2e" stroke-width="2.8"/>
+    <line x1="600" y1="74" x2="600" y2="318" stroke="#1a1a2e" stroke-width="1"/>
+    <text x="612" y="65" fill="#0033cc" font-weight="bold" font-size="7.5">Cbulk</text>
+    <text x="612" y="75" fill="#444" font-size="7">${Math.ceil(600)}µF/${Math.ceil(vcc*1.3)}V</text>
+
+    <!-- ══ LÉGENDE ══ -->
+    <rect x="455" y="240" width="185" height="95" rx="3"
+      fill="#f8f9ff" stroke="#bbb" stroke-width="0.8"/>
+    <text x="547" y="254" text-anchor="middle" font-size="8.5"
+      font-weight="bold" fill="#1a1a2e">Légende</text>
+    <line x1="460" y1="258" x2="635" y2="258" stroke="#ddd" stroke-width="0.5"/>
+    <!-- Bobine -->
+    <path d="M 463,273 Q 467,267 471,273 Q 475,279 479,273"
+      fill="none" stroke="#1a1a2e" stroke-width="1.5"/>
+    <text x="485" y="276" fill="#333">Inductance (L)</text>
+    <!-- Capa -->
+    <line x1="463" y1="291" x2="473" y2="291" stroke="#1a1a2e" stroke-width="2"/>
+    <line x1="463" y1="296" x2="473" y2="296" stroke="#1a1a2e" stroke-width="2"/>
+    <text x="485" y="295" fill="#333">Condensateur (C)</text>
+    <!-- MOSFET -->
+    <line x1="463" y1="312" x2="466" y2="312" stroke="#1a1a2e" stroke-width="1.5"/>
+    <line x1="466" y1="308" x2="466" y2="316" stroke="#1a1a2e" stroke-width="2.5"/>
+    <polygon points="467,312 472,309 472,315" fill="#1a1a2e"/>
+    <line x1="472" y1="308" x2="472" y2="316" stroke="#1a1a2e" stroke-width="2.5"/>
+    <line x1="472" y1="312" x2="476" y2="312" stroke="#1a1a2e" stroke-width="1.5"/>
+    <text x="485" y="315" fill="#333">MOSFET N-Ch (Q)</text>
+  </svg>`;
+}
+
+export async function svgToDataURL(svgString: string, w: number, h: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    canvas.width  = w * 2;
+    canvas.height = h * 2;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { reject('canvas error'); return; }
+    ctx.scale(2, 2);
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, w, h);
+    const img = new Image();
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/png', 1.0));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject('SVG render error'); };
+    img.src = url;
+  });
+}
