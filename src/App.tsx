@@ -9,13 +9,15 @@ function App() {
   const isPremium = false;
   const [screen, setScreen] = useState<'home' | 'analyzer'>('home');
   const [isExpertMode, setIsExpertMode] = useState(false);
+
   const [params, setParams] = useState<UserParams>({
     targetPower: 50,
     loadImpedance: 8,
     supplyVoltage: 35,
     supplyType: 'Symmetrical',
     ampClass: 'Class AB',
-    ambientTemp: 25
+    ambientTemp: 25,
+    selectedIC: 'LM3886'
   });
   const [analysisData, setAnalysisData] = useState<CalculationResults | null>(null);
   const [history, setHistory] = useState<Analysis[]>([]);
