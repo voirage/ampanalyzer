@@ -82,8 +82,8 @@ function SchematicViewer({
   const getSVG = (): string => {
     if (view === 'normalized') {
       return params.ampClass === 'Class AB'
-        ? buildClassABSchematic(results.vcc, params.loadImpedance, icForSchema)
-        : buildClassDSchematic(results.vcc, params.loadImpedance, lUH, cUF, icForSchema, isIntegrated);
+        ? buildClassABSchematic(results.vcc, params.loadImpedance, icForSchema, params.selectedIC ?? '')
+        : buildClassDSchematic(results.vcc, params.loadImpedance, lUH, cUF, icForSchema, isIntegrated, params.selectedIC ?? '');
     }
     if (view === 'discrete') {
       return params.ampClass === 'Class AB'
@@ -92,53 +92,60 @@ function SchematicViewer({
     }
     return buildPseudo3DView(results.vcc, params.loadImpedance, npnOut, pnpOut, params.ampClass, pairs, icForSchema);
   };
+  if (view === 'discrete') {
+    return params.ampClass === 'Class AB'
+      ? buildDiscreteClassABSchematic(results.vcc, params.loadImpedance, npnOut, pnpOut, pairs, drvNPN, drvPNP, reVal)
+      : buildDiscreteClassDSchematic(results.vcc, params.loadImpedance, mosfet, lUH, cUF);
+  }
+  return buildPseudo3DView(results.vcc, params.loadImpedance, npnOut, pnpOut, params.ampClass, pairs, icForSchema);
+};
 
-  const tabs = [
-    { id: 'normalized' as const, label: 'Schéma Normalisé', icon: <FileCode size={14} /> },
-    { id: 'discrete' as const, label: 'Schéma Discret BJT', icon: <Cpu size={14} /> },
-    { id: '3d' as const, label: 'Carte PCB Vue 3D', icon: <Box size={14} /> },
-  ];
+const tabs = [
+  { id: 'normalized' as const, label: 'Schéma Normalisé', icon: <FileCode size={14} /> },
+  { id: 'discrete' as const, label: 'Schéma Discret BJT', icon: <Cpu size={14} /> },
+  { id: '3d' as const, label: 'Carte PCB Vue 3D', icon: <Box size={14} /> },
+];
 
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setView(tab.id)} style={{
-            display: 'flex', alignItems: 'center', gap: '0.4rem',
-            padding: '0.5rem 1rem', borderRadius: '0.6rem', cursor: 'pointer',
-            border: `1px solid ${view === tab.id ? 'var(--accent-cyan)' : 'var(--border-glass)'}`,
-            background: view === tab.id ? 'rgba(0,242,255,0.1)' : 'transparent',
-            color: view === tab.id ? 'var(--accent-cyan)' : 'var(--text-muted)',
-            fontSize: '0.82rem', fontWeight: 600, transition: 'all 0.2s', fontFamily: 'inherit'
-          }}>
-            {tab.icon} {tab.label}
-          </button>
-        ))}
-      </div>
-      <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.75rem', fontStyle: 'italic' }}>
-        {view === 'normalized' && `CI sélectionné : ${icForSchema}${isIntegrated ? ' (CI Intégré — H-Bridge interne)' : ''} — Symboles Norme CEI`}
-        {view === 'discrete' && 'Circuit complet BJT — Broches B/C/E en rouge — Topologie 3 étages'}
-        {view === '3d' && 'Vue isométrique illustrative — positions indicatives'}
-      </p>
-      <div
-        style={{
-          background: view === '3d' ? '#0d1117' : 'white',
-          borderRadius: '0.75rem', padding: '0.5rem',
-          border: '1px solid var(--border-glass)', overflowX: 'auto'
-        }}
-        dangerouslySetInnerHTML={{ __html: getSVG() }}
-      />
-      <div style={{
-        marginTop: '0.6rem', padding: '0.6rem 0.85rem',
-        background: 'rgba(0,242,255,0.04)', borderRadius: '0.5rem',
-        border: '1px solid rgba(0,242,255,0.1)', fontSize: '0.78rem', color: 'var(--text-muted)'
-      }}>
-        {view === 'normalized' && <>Schéma normalisé pour <strong style={{ color: 'var(--accent-cyan)' }}>{icForSchema}</strong>{isIntegrated ? ' — CI intégré : pas de MOSFETs externes' : ''}</>}
-        {view === 'discrete' && <><strong style={{ color: 'var(--accent-cyan)' }}>Broches en rouge</strong> — B=Base · C=Collecteur · E=Émetteur (BJT) | G=Gate · D=Drain · S=Source (MOSFET)</>}
-        {view === '3d' && 'Utilisez le schéma normalisé pour le câblage réel'}
-      </div>
+return (
+  <div>
+    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+      {tabs.map(tab => (
+        <button key={tab.id} onClick={() => setView(tab.id)} style={{
+          display: 'flex', alignItems: 'center', gap: '0.4rem',
+          padding: '0.5rem 1rem', borderRadius: '0.6rem', cursor: 'pointer',
+          border: `1px solid ${view === tab.id ? 'var(--accent-cyan)' : 'var(--border-glass)'}`,
+          background: view === tab.id ? 'rgba(0,242,255,0.1)' : 'transparent',
+          color: view === tab.id ? 'var(--accent-cyan)' : 'var(--text-muted)',
+          fontSize: '0.82rem', fontWeight: 600, transition: 'all 0.2s', fontFamily: 'inherit'
+        }}>
+          {tab.icon} {tab.label}
+        </button>
+      ))}
     </div>
-  );
+    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.75rem', fontStyle: 'italic' }}>
+      {view === 'normalized' && `CI sélectionné : ${icForSchema}${isIntegrated ? ' (CI Intégré — H-Bridge interne)' : ''} — Symboles Norme CEI`}
+      {view === 'discrete' && 'Circuit complet BJT — Broches B/C/E en rouge — Topologie 3 étages'}
+      {view === '3d' && 'Vue isométrique illustrative — positions indicatives'}
+    </p>
+    <div
+      style={{
+        background: view === '3d' ? '#0d1117' : 'white',
+        borderRadius: '0.75rem', padding: '0.5rem',
+        border: '1px solid var(--border-glass)', overflowX: 'auto'
+      }}
+      dangerouslySetInnerHTML={{ __html: getSVG() }}
+    />
+    <div style={{
+      marginTop: '0.6rem', padding: '0.6rem 0.85rem',
+      background: 'rgba(0,242,255,0.04)', borderRadius: '0.5rem',
+      border: '1px solid rgba(0,242,255,0.1)', fontSize: '0.78rem', color: 'var(--text-muted)'
+    }}>
+      {view === 'normalized' && <>Schéma normalisé pour <strong style={{ color: 'var(--accent-cyan)' }}>{icForSchema}</strong>{isIntegrated ? ' — CI intégré : pas de MOSFETs externes' : ''}</>}
+      {view === 'discrete' && <><strong style={{ color: 'var(--accent-cyan)' }}>Broches en rouge</strong> — B=Base · C=Collecteur · E=Émetteur (BJT) | G=Gate · D=Drain · S=Source (MOSFET)</>}
+      {view === '3d' && 'Utilisez le schéma normalisé pour le câblage réel'}
+    </div>
+  </div>
+);
 }
 
 // ══════════════════════════════════════════════════════════════
