@@ -844,9 +844,8 @@ function pnpBJT(cx: number, cy: number, r: number, ref: string, part: string): s
 // ============================================================
 //  SCHÉMA DISCRET AB — complet
 // ============================================================
-export function buildDiscreteClassABSchematic(
-  vcc: number, rl: number, npnOut: string, pnpOut: string,
-  pairs: number, drvNPN: string, drvPNP: string, re: number
+export function buildClassABSchematic(
+  vcc: number, rl: number, icName = 'LM3886', selectedIC = 'LM3886'
 ): string {
   return `<svg width="820" height="480" viewBox="0 0 820 480" xmlns="http://www.w3.org/2000/svg" font-family="Arial,Helvetica,sans-serif">
     <rect width="820" height="480" fill="white"/>
@@ -967,10 +966,10 @@ const ST_AB = ['TDA7294', 'TDA7293', 'TDA7295'];
 const MODULE_AB = ['STK4048XI', 'LM4780'];
 const INTEGRATED_D = ['TPA3116D2', 'TPA3110D2', 'TPA3255', 'MA12070', 'TDA8954TH'];
 const DRIVER_D = ['IR2110', 'IRS2110', 'SG3525_IRS2110'];
-
 export function buildClassABSchematic(
   vcc: number, rl: number, icName: string, selectedIC: string
 ): string {
+
   if (SIMPLE_AB.includes(selectedIC)) return schAB_Simple(vcc, rl, icName);
   if (ST_AB.includes(selectedIC)) return schAB_ST(vcc, rl, icName);
   if (MODULE_AB.includes(selectedIC)) return schAB_Module(vcc, rl, icName);
