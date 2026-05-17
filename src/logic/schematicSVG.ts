@@ -966,26 +966,9 @@ const ST_AB = ['TDA7294', 'TDA7293', 'TDA7295'];
 const MODULE_AB = ['STK4048XI', 'LM4780'];
 const INTEGRATED_D = ['TPA3116D2', 'TPA3110D2', 'TPA3255', 'MA12070', 'TDA8954TH'];
 const DRIVER_D = ['IR2110', 'IRS2110', 'SG3525_IRS2110'];
-export function buildClassABSchematic(
-  vcc: number, rl: number, icName: string, selectedIC: string
-): string {
 
-  if (SIMPLE_AB.includes(selectedIC)) return schAB_Simple(vcc, rl, icName);
-  if (ST_AB.includes(selectedIC)) return schAB_ST(vcc, rl, icName);
-  if (MODULE_AB.includes(selectedIC)) return schAB_Module(vcc, rl, icName);
-  return schAB_Overture(vcc, rl, icName); // LM3886, LM3875, LM3876, LM1875
-}
 
-export function buildClassDSchematic(
-  vcc: number, rl: number, lUH: number, cUF: number,
-  icName: string, isIntegrated: boolean, selectedIC: string
-): string {
-  if (isIntegrated || INTEGRATED_D.includes(selectedIC))
-    return schD_Integrated(vcc, rl, lUH, cUF, icName);
-  if (DRIVER_D.includes(selectedIC))
-    return schD_DriverCombo(vcc, rl, lUH, cUF, icName);
-  return schD_HalfBridge(vcc, rl, lUH, cUF, icName); // IRS2092S, UCD3138
-}
+
 
 // ============================================================
 //  VUE 3D PCB ISOMÉTRIQUE
@@ -1076,6 +1059,120 @@ export function buildPseudo3DView(
     <rect x="120" y="416" width="10" height="7" fill="#d0d0d0"/><text x="134" y="423" font-size="7.5" fill="#ccc">Dissipateur</text>
     <text x="360" y="452" text-anchor="middle" font-size="8" fill="#444">Vue illustrative — Utiliser schema normalise pour le cablage reel</text>
   </svg>`;
+}
+
+
+export function buildDiscreteClassABSchematic(
+  vcc: number, rl: number,
+  npnOut: string, pnpOut: string,
+  pairs: number, drvNPN: string, drvPNP: string, re: number
+): string {
+  const reStr = `${re.toFixed(2)} Ohm`;
+  return `<svg width="820" height="480" viewBox="0 0 820 480"
+    xmlns="http://www.w3.org/2000/svg" font-family="Arial,Helvetica,sans-serif">
+    <rect width="820" height="480" fill="white"/>
+    <text x="410" y="17" text-anchor="middle" font-size="11" font-weight="bold" fill="#0a0a2e">
+      Schema Discret Classe AB — ±${vcc}V / ${rl}Ohm — ${pairs} paire${pairs > 1 ? 's' : ''}
+    </text>
+    <line x1="10" y1="22" x2="810" y2="22" stroke="#bbb" stroke-width="0.8"/>
+    <line x1="10" y1="42" x2="810" y2="42" stroke="#cc2200" stroke-width="1.5" stroke-dasharray="8,3"/>
+    <text x="14" y="39" font-size="9.5" fill="#cc2200" font-weight="bold">+VCC (+${vcc}V)</text>
+    <line x1="10" y1="445" x2="810" y2="445" stroke="#0033cc" stroke-width="1.5" stroke-dasharray="8,3"/>
+    <text x="14" y="455" font-size="9.5" fill="#0033cc" font-weight="bold">-VCC (-${vcc}V)</text>
+    <text x="14" y="247" font-size="9" fill="#333" font-weight="bold">Audio IN</text>
+    <line x1="58" y1="242" x2="82" y2="242" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="82" y1="232" x2="82" y2="252" stroke="#1a1a2e" stroke-width="3.5"/>
+    <line x1="88" y1="232" x2="88" y2="252" stroke="#1a1a2e" stroke-width="3.5"/>
+    <line x1="88" y1="242" x2="112" y2="242" stroke="#1a1a2e" stroke-width="1.8"/>
+    <text x="85" y="222" text-anchor="middle" font-size="9" fill="#0033cc" font-weight="bold">C4</text>
+    <text x="85" y="268" text-anchor="middle" font-size="8" fill="#333">1 uF</text>
+    ${rH(112, 242, 30, 'R9', '47kOhm')}
+    ${dot(142, 242)}
+    <line x1="142" y1="242" x2="142" y2="268" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${rV(142, 268, 30, 'R7', '22kOhm')}
+    ${gnd(142, 298)}
+    <line x1="142" y1="242" x2="168" y2="242" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${pnpBJT(200, 242, 24, 'Q7', drvPNP)}
+    <line x1="224" y1="220" x2="224" y2="175" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="224" y1="264" x2="265" y2="264" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="224" y1="42" x2="224" y2="148" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${rV(224, 148, 27, 'R6', '18kOhm')}
+    ${npnBJT(292, 242, 24, 'Q6', drvNPN)}
+    <line x1="224" y1="175" x2="224" y2="200" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${rV(224, 200, 28, 'R5', '1kOhm')}
+    ${gnd(224, 228)}
+    <line x1="316" y1="220" x2="316" y2="185" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${rV(316, 155, 30, 'R4', '560Ohm')}
+    ${gnd(316, 185)}
+    <line x1="380" y1="42" x2="380" y2="68" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${rV(380, 68, 30, 'R1', '2.7kOhm')}
+    ${rV(380, 108, 30, 'R2', '2.7kOhm')}
+    ${cV(373, 148, 'C1', '47uF')}
+    ${dot(380, 108)}
+    <line x1="380" y1="168" x2="380" y2="195" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${rH(316, 264, 40, 'R3', '22kOhm')}
+    <line x1="356" y1="264" x2="365" y2="264" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="365" y1="264" x2="365" y2="240" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="365" y1="240" x2="365" y2="150" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="365" y1="150" x2="365" y2="120" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="365" y1="120" x2="380" y2="120" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${dot(365, 150)}
+    ${npnBJT(435, 178, 26, 'Q4', 'BD139')}
+    <line x1="365" y1="150" x2="409" y2="150" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="409" y1="150" x2="409" y2="178" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="461" y1="152" x2="485" y2="152" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="485" y1="152" x2="485" y2="42" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="461" y1="202" x2="495" y2="202" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${pnpBJT(435, 310, 26, 'Q5', 'BD140')}
+    <line x1="365" y1="264" x2="409" y2="264" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="409" y1="264" x2="409" y2="310" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="461" y1="334" x2="485" y2="334" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="485" y1="334" x2="485" y2="445" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="461" y1="288" x2="495" y2="288" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${npnBJT(537, 202, pairs > 1 ? 30 : 28, 'Q1', npnOut)}
+    <line x1="${537 + 28}" y1="${202 - 28}" x2="${565 + 28}" y2="100" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="${565 + 28}" y1="100" x2="${565 + 28}" y2="42" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${pnpBJT(537, 290, pairs > 1 ? 30 : 28, 'Q2', pnpOut)}
+    <line x1="${537 + 28}" y1="${290 + 28}" x2="${565 + 28}" y2="380" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="${565 + 28}" y1="380" x2="${565 + 28}" y2="445" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="${537 + 28}" y1="${202 + 28}" x2="${537 + 28}" y2="245" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${rV(537 + 28, 245, 18, 'RE1', reStr)}
+    <line x1="${537 + 28}" y1="${290 - 28}" x2="${537 + 28}" y2="263" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${rV(537 + 28, 263, 18, 'RE2', reStr)}
+    ${dot(537 + 28, 245)}
+    <line x1="${537 + 28}" y1="245" x2="620" y2="245" stroke="#1a1a2e" stroke-width="2.2"/>
+    ${dot(620, 245)}
+    <line x1="630" y1="245" x2="665" y2="245" stroke="#1a1a2e" stroke-width="2.2"/>
+    <rect x="665" y="229" width="18" height="32" rx="1" fill="#ddeeff" stroke="#1a1a2e" stroke-width="1.8"/>
+    <polygon points="683,229 683,261 712,275 712,215" fill="#ddeeff" stroke="#1a1a2e" stroke-width="1.8"/>
+    <line x1="696" y1="275" x2="696" y2="355" stroke="#1a1a2e" stroke-width="1.8"/>
+    ${gnd(696, 355)}
+    <text x="696" y="290" text-anchor="middle" font-size="9.5" fill="#0033cc" font-weight="bold">HP</text>
+    <text x="696" y="302" text-anchor="middle" font-size="9" fill="#333">${rl} Ohm</text>
+    <line x1="620" y1="245" x2="620" y2="390" stroke="#1a1a2e" stroke-width="1.5" stroke-dasharray="6,3"/>
+    <line x1="620" y1="390" x2="316" y2="390" stroke="#1a1a2e" stroke-width="1.5" stroke-dasharray="6,3"/>
+    ${rH(316, 390, 50, 'Rfb2', '22kOhm')}
+    <line x1="366" y1="390" x2="366" y2="264" stroke="#1a1a2e" stroke-width="1.5" stroke-dasharray="6,3"/>
+    ${rH(253, 264, 30, 'Rfb1', '1kOhm')}
+    <line x1="253" y1="264" x2="253" y2="305" stroke="#1a1a2e" stroke-width="1.5"/>
+    ${gnd(253, 305)}
+    <text x="410" y="410" font-size="8" fill="#888" font-style="italic">--- Boucle de feedback</text>
+    <text x="410" y="465" text-anchor="middle" font-size="8" fill="#888">
+      Broches en rouge : B=Base C=Collecteur E=Emetteur — ${pairs} paire${pairs > 1 ? 's' : ''} sortie : ${npnOut} / ${pnpOut}
+    </text>
+  </svg>`;
+}
+export function buildClassDSchematic(
+  vcc: number, rl: number, lUH: number, cUF: number,
+  icName = 'IRS2092S', isIntegrated = false, selectedIC = 'IRS2092S'
+): string {
+  const INT_D = ['TPA3116D2', 'TPA3110D2', 'TPA3255', 'MA12070', 'TDA8954TH'];
+  const DRV_D = ['IR2110', 'IRS2110', 'SG3525_IRS2110'];
+  if (isIntegrated || INT_D.includes(selectedIC))
+    return schD_Integrated(vcc, rl, lUH, cUF, icName);
+  if (DRV_D.includes(selectedIC))
+    return schD_DriverCombo(vcc, rl, lUH, cUF, icName);
+  return schD_HalfBridge(vcc, rl, lUH, cUF, icName);
 }
 
 // ============================================================
